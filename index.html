@@ -196,8 +196,30 @@
             img.onload = function() {
                 console.log('✅ 背景图片加载成功');
                 try {
-                    const texture = new THREE.Texture(img);
-                    texture.needsUpdate = true;
+                    // 先将图片绘制到canvas上进行调暗处理
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    const ctx = canvas.getContext('2d');
+                    
+                    // 绘制原图
+                    ctx.drawImage(img, 0, 0);
+                    
+                    // 应用暗化滤镜
+                    ctx.globalCompositeOperation = 'multiply';
+                    ctx.fillStyle = 'rgba(0, 0, 50, 0.7)';  // 深蓝色覆盖，降低亮度
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    
+                    // 重置混合模式
+                    ctx.globalCompositeOperation = 'source-over';
+                    
+                    // 稍微增加对比度
+                    ctx.globalAlpha = 0.3;
+                    ctx.fillStyle = '#000000';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.globalAlpha = 1.0;
+                    
+                    const texture = new THREE.CanvasTexture(canvas);
                     texture.colorSpace = THREE.SRGBColorSpace;
                     texture.minFilter = THREE.LinearFilter;
                     texture.magFilter = THREE.LinearFilter;
@@ -210,7 +232,7 @@
                     // 强制渲染
                     setTimeout(() => {
                         renderer.render(scene, camera);
-                        console.log('背景图片已应用');
+                        console.log('调暗的背景图片已应用');
                         // 背景加载完成，调用回调开始动画
                         onComplete();
                     }, 100);
@@ -243,18 +265,22 @@
             canvas.height = 512;
             const ctx = canvas.getContext('2d');
             
-            // 创建渐变
+            // 创建更暗的渐变背景
             const gradient = ctx.createLinearGradient(0, 0, 0, 512);
-            gradient.addColorStop(0, '#001133');
-            gradient.addColorStop(0.5, '#003366');
-            gradient.addColorStop(1, '#112244');
+            gradient.addColorStop(0, '#000511');    // 极深的深蓝色
+            gradient.addColorStop(0.3, '#000822');  // 深蓝色
+            gradient.addColorStop(0.6, '#000b33');  // 稍亮的深蓝
+            gradient.addColorStop(0.8, '#000e44');  // 中等深蓝
+            gradient.addColorStop(1, '#001155');    // 底部深蓝
             
             ctx.fillStyle = gradient;
             ctx.fillRect(0, 0, 512, 512);
             
-            // 添加星星效果
-            for (let i = 0; i < 100; i++) {
-                ctx.fillStyle = `rgba(255, 255, 255, ${Math.random()})`;
+            // 添加更稀疏、更暗的星星效果
+            for (let i = 0; i < 60; i++) {
+                // 降低星星的亮度和密度
+                const opacity = Math.random() * 0.4;  // 最大透明度0.4
+                ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
                 ctx.fillRect(
                     Math.random() * 512,
                     Math.random() * 512,
@@ -265,7 +291,7 @@
             const texture = new THREE.CanvasTexture(canvas);
             scene.background = texture;
             
-            console.log('✅ 渐变背景已设置');
+            console.log('✅ 更暗的渐变背景已设置');
         }
         
         /**

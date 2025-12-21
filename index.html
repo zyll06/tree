@@ -187,28 +187,235 @@
          */
         function loadBackgroundTexture(scene, renderer, camera) { // 背景纹理加载函数开始
             
-            // ⭐⭐⭐ 关键修复：使用原生Image对象避免Three.js跨域问题
-            console.log('🔍 开始加载背景图片...');
+            // ⭐⭐⭐ 强制确保图片加载成功的策略
+            console.log('🔍 开始强制加载背景图片...');
             
-            // 检测当前访问方式
-            const isFileProtocol = window.location.protocol === 'file:';
-            const isHttpProtocol = window.location.protocol.startsWith('http');
+            // 立即创建基础背景，避免空白
+            createSolidBackground(scene, renderer, camera);
             
-            console.log('📋 访问协议:', window.location.protocol);
-            console.log('📋 当前页面URL:', window.location.href);
-            
-            // 根据访问方式选择不同的加载策略
-            if (isFileProtocol) {
-                // file:// 协议 - 直接使用相对路径
-                loadImageWithNative('./christmas_tree.jpg', scene, renderer, camera);
-            } else if (isHttpProtocol) {
-                // http/https 协议 - 使用多重路径尝试
-                tryMultiplePaths(scene, renderer, camera);
-            } else {
-                console.error('❌ 不支持的协议:', window.location.protocol);
-                useFallbackBackground(scene, renderer, camera);
-            }
+            // 使用多重策略同时加载，确保成功
+            loadWithMultipleStrategies(scene, renderer, camera);
         } // loadBackgroundTexture函数结束
+        
+        /**
+         * 创建纯色基础背景（避免空白）
+         */
+        function createSolidBackground(scene, renderer, camera) {
+            const gradientCanvas = document.createElement('canvas');
+            gradientCanvas.width = 512;
+            gradientCanvas.height = 512;
+            const ctx = gradientCanvas.getContext('2d');
+            
+            // 创建深蓝渐变背景
+            const gradient = ctx.createLinearGradient(0, 0, 0, 512);
+            gradient.addColorStop(0, '#000033');
+            gradient.addColorStop(0.5, '#000066');
+            gradient.addColorStop(1, '#000099');
+            
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 512, 512);
+            
+            const baseTexture = new THREE.CanvasTexture(gradientCanvas);
+            scene.background = baseTexture;
+            renderer.render(scene, camera);
+            
+            console.log('✅ 基础背景已设置');
+        }
+        
+        /**
+         * 使用多重策略强制加载图片
+         */
+        function loadWithMultipleStrategies(scene, renderer, camera) {
+            let loadSuccess = false;
+            const maxRetries = 3;
+            let retryCount = 0;
+            
+            // 策略1：同步预加载 + 缓存破坏
+            function trySyncLoad() {
+                const img = new Image();
+                const timestamp = Date.now();
+                const cacheBusterUrl = `./christmas_tree.jpg?_=${timestamp}&retry=${retryCount}`;
+                
+                console.log(`🔄 同步加载尝试 ${retryCount + 1}: ${cacheBusterUrl}`);
+                
+                // 强制刷新缓存
+                img.src = '';
+                
+                setTimeout(() => {
+                    img.crossOrigin = 'anonymous';
+                    img.onload = function() {
+                        if (loadSuccess) return;
+                        loadSuccess = true;
+                        console.log('✅ 同步加载成功!');
+                        applyImageBackground(img, scene, renderer, camera);
+                    };
+                    
+                    img.onerror = function() {
+                        console.log(`❌ 同步加载失败 ${retryCount + 1}`);
+                        retryCount++;
+                        if (retryCount < maxRetries) {
+                            setTimeout(trySyncLoad, 200 * retryCount);
+                        } else {
+                            // 同步失败，尝试异步策略
+                            tryAsyncLoad();
+                        }
+                    };
+                    
+                    img.src = cacheBusterUrl;
+                }, 100);
+            }
+            
+            // 策略2：异步加载 + XMLHttpRequest
+            function tryAsyncLoad() {
+                console.log('🔄 尝试异步加载策略...');
+                
+                const xhr = new XMLHttpRequest();
+                xhr.open('GET', './christmas_tree.jpg', true);
+                xhr.responseType = 'blob';
+                
+                xhr.onload = function() {
+                    if (loadSuccess) return;
+                    
+                    if (xhr.status === 200) {
+                        const blob = xhr.response;
+                        const url = URL.createObjectURL(blob);
+                        
+                        const img = new Image();
+                        img.onload = function() {
+                            if (loadSuccess) return;
+                            loadSuccess = true;
+                            console.log('✅ 异步加载成功!');
+                            applyImageBackground(img, scene, renderer, camera);
+                            URL.revokeObjectURL(url);
+                        };
+                        img.onerror = function() {
+                            console.log('❌ 异步图片创建失败');
+                            tryCanvasBasedLoad();
+                        };
+                        img.src = url;
+                    } else {
+                        console.log('❌ 异步HTTP请求失败');
+                        tryCanvasBasedLoad();
+                    }
+                };
+                
+                xhr.onerror = function() {
+                    console.log('❌ 异步请求网络错误');
+                    tryCanvasBasedLoad();
+                };
+                
+                xhr.send();
+            }
+            
+            // 策略3：Canvas重绘
+            function tryCanvasBasedLoad() {
+                console.log('🔄 尝试Canvas重绘策略...');
+                
+                const img = new Image();
+                img.onload = function() {
+                    if (loadSuccess) return;
+                    loadSuccess = true;
+                    
+                    // 通过Canvas重新绘制，确保跨域兼容
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    const ctx = canvas.getContext('2d');
+                    
+                    try {
+                        ctx.drawImage(img, 0, 0);
+                        const canvasTexture = new THREE.CanvasTexture(canvas);
+                        scene.background = canvasTexture;
+                        renderer.render(scene, camera);
+                        console.log('✅ Canvas重绘成功!');
+                    } catch (e) {
+                        console.log('❌ Canvas重绘失败:', e);
+                        createEnhancedFallback(scene, renderer, camera);
+                    }
+                };
+                
+                img.onerror = function() {
+                    console.log('❌ Canvas图片加载失败');
+                    createEnhancedFallback(scene, renderer, camera);
+                };
+                
+                // 尝试不同的路径变体
+                img.src = retryCount === 0 ? 'christmas_tree.jpg' : './christmas_tree.jpg';
+            }
+            
+            // 策略4：增强的后备方案
+            function createEnhancedFallback(scene, renderer, camera) {
+                console.log('🎨 创建增强后备背景...');
+                
+                const canvas = document.createElement('canvas');
+                canvas.width = 1024;
+                canvas.height = 1024;
+                const ctx = canvas.getContext('2d');
+                
+                // 创建复杂星空背景
+                // 深蓝渐变
+                const bgGradient = ctx.createRadialGradient(512, 512, 100, 512, 512, 800);
+                bgGradient.addColorStop(0, '#003366');
+                bgGradient.addColorStop(0.5, '#002244');
+                bgGradient.addColorStop(1, '#001122');
+                ctx.fillStyle = bgGradient;
+                ctx.fillRect(0, 0, 1024, 1024);
+                
+                // 添加星星
+                for (let i = 0; i < 500; i++) {
+                    const x = Math.random() * 1024;
+                    const y = Math.random() * 1024;
+                    const size = Math.random() * 2;
+                    const opacity = Math.random() * 0.8 + 0.2;
+                    
+                    ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
+                    ctx.beginPath();
+                    ctx.arc(x, y, size, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                
+                // 添加彩色星星
+                for (let i = 0; i < 50; i++) {
+                    const x = Math.random() * 1024;
+                    const y = Math.random() * 1024;
+                    const colors = ['#ffff99', '#99ccff', '#ff99cc', '#ccff99'];
+                    const color = colors[Math.floor(Math.random() * colors.length)];
+                    
+                    ctx.fillStyle = color;
+                    ctx.fillRect(x, y, 1, 1);
+                }
+                
+                const enhancedTexture = new THREE.CanvasTexture(canvas);
+                scene.background = enhancedTexture;
+                renderer.render(scene, camera);
+                
+                console.log('✅ 增强后备背景已应用');
+            }
+            
+            // 应用成功加载的图片
+            function applyImageBackground(img, scene, renderer, camera) {
+                const texture = new THREE.Texture(img);
+                texture.needsUpdate = true;
+                texture.colorSpace = THREE.SRGBColorSpace;
+                texture.minFilter = THREE.LinearFilter;
+                texture.magFilter = THREE.LinearFilter;
+                texture.wrapS = THREE.ClampToEdgeWrapping;
+                texture.wrapT = THREE.ClampToEdgeWrapping;
+                texture.generateMipmaps = false;
+                
+                scene.background = texture;
+                
+                // 多次渲染确保显示
+                setTimeout(() => renderer.render(scene, camera), 50);
+                setTimeout(() => renderer.render(scene, camera), 200);
+                setTimeout(() => renderer.render(scene, camera), 500);
+                
+                console.log('🎉 背景图片应用成功!');
+            }
+            
+            // 开始尝试
+            trySyncLoad();
+        }
         
         /**
          * 使用原生Image对象加载图片（避免跨域问题）

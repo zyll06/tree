@@ -44,13 +44,13 @@
                 LEAF_HEIGHT_RANGE: 10, // 树叶高度范围
                 LEAF_BASE_HEIGHT: 1, // 树叶起始高度
                 LEAF_BASE_RADIUS: 4.26, // 树叶基础半径
-                RIBBON_PROBABILITY: 0.04, // 彩带粒子出现概率（3%）
+                RIBBON_PROBABILITY: 0.12, // 彩带粒子出现概率（3%）
                 RIBBON_COUNT: 3, // 彩带数量
                 RIBBON_SPIRAL_TURNS: 3, // 彩带螺旋圈数
                 POSITION_OFFSET: new THREE.Vector3(0, -7, 0), // 树的位置偏移向量
                 SCALE: new THREE.Vector3(2, 2.2, 2), // 树的缩放比例
                 TILT_X: THREE.MathUtils.degToRad(-30), // X轴倾斜角度（转换为弧度）
-                ROTATION_SPEED: -0.002, // 树的旋转速度（负值表示逆时针）
+                ROTATION_SPEED: -0.005, // 树的旋转速度（负值表示逆时针）
                 BATCH_SIZE: 600, // 每批处理的粒子数量
                 BATCH_INTERVAL: 120 // 批次间隔时间（毫秒），控制星星点亮速度
             }, // TREE配置结束
@@ -98,7 +98,88 @@
                     INITIAL_RADIUS: 40,  // 粒子初始随机分布半径
                     ALL_PARTICLES_VISIBLE_DELAY: 500   // 等待所有粒子出现后再开始移动
                 } // PARTICLE_ANIMATION结束
-            } // ANIMATION配置结束
+            }, // ANIMATION配置结束
+            
+            // 粒子亮度常量 - 🎨 调整这些值可以改变整体的明暗效果
+            BRIGHTNESS: {
+                TRUNK_SHADOW_BASE: 10,        // 🌲 树干基础阴影因子(0.8-1.5) - 越大越亮，越小越暗
+                TRUNK_SHADOW_HEIGHT_FACTOR: 0.5, // 📏 树干高度阴影渐变强度(0.0-0.3) - 越大顶部越亮
+                RIBBON_BRIGHTNESS_MULTIPLIER: 1.1, // 🎀 彩带亮度倍数(1.0-1.5) - 越大彩带越突出
+                SPARKLE_BASE_INITIAL: 1.15,       // ✨ 初始闪耀基础亮度(0.5-1.5) - 星形阶段基础明度
+                SPARKLE_AMPLITUDE_INITIAL: 0.5,   // 🌟 初始闪耀幅度(0.1-0.8) - 闪烁变化强度
+                SPARKLE_BASE_FINAL: 1.15,          // 🎄 最终闪耀基础亮度(0.7-1.2) - 成树后基础明度
+                SPARKLE_AMPLITUDE_FINAL: 0.15,     // 🎊 最终闪耀幅度(0.05-0.3) - 成树后闪烁强度
+                BACKGROUND_OVERLAY_ALPHA: 0.3,       // 🌃 背景暗化覆盖层透明度(0.0-0.5) - 越大背景越暗
+                BACKGROUND_MULTIPLY_ALPHA: 0.7       // 🌌 背景暗化乘法透明度(0.3-0.9) - 越大图片越暗
+            },
+            
+            // 粒子尺寸常量 - 📏 调整这些值可以改变粒子的大小和分布
+            SIZES: {
+                TRUNK_BASE: 2.5,              // 🌲 树干基础大小(1.0-4.0) - 树干粒子基础尺寸
+                TRUNK_VARIANCE: 3.5,          // 📏 树干大小变化范围(1.0-5.0) - 树干尺寸随机变化量
+                LEAF_BASE: 1.8,               // 🍃 树叶基础大小(1.0-3.0) - 树叶粒子基础尺寸
+                LEAF_VARIANCE: 3.5,           // 🌿 树叶大小变化范围(1.0-5.0) - 树叶尺寸随机变化量
+                RIBBON_MULTIPLIER: 2.0,        // 🎀 彩带尺寸倍数(1.5-3.0) - 彩带相对普通粒子的大小倍数
+                TOP_SIZE_FACTOR: 0.9,           // 🎄 树顶部粒子尺寸因子(0.7-1.2) - 树顶部粒子大小调整
+                NORMAL_SIZE_FACTOR: 1.1,         // 🌲 普通粒子尺寸因子(0.8-1.5) - 树身粒子大小调整
+                SIZE_VARIANCE_BASE: 0.95,        // 🎲 尺寸随机变化基础(0.8-1.2) - 粒子尺寸随机基础值
+                SIZE_VARIANCE_RANGE: 0.25        // 🎰 尺寸随机变化范围(0.1-0.5) - 粒子尺寸随机变化范围
+            },
+            
+            // 系统时序常量 - ⏱️ 调整这些值可以改变动画的时间节奏
+            TIMING: {
+                PARTICLE_INIT_DELAY: 500,       // ⏱️ 粒子系统初始化延迟(100-2000) - 页面加载后多久显示粒子(ms)
+                BACKGROUND_RENDER_DELAY: 100,     // 🖼️ 背景渲染延迟(50-500) - 背景图片渲染延迟(ms)
+                APPEAR_DURATION: 500,            // 👁️ 粒子出现持续时间(200-1000) - 单批粒子渐显时间(ms)
+                SNOW_FADE_IN_DURATION: 500,     // ❄️ 雪花淡入持续时间(200-1000) - 雪花渐显时间(ms)
+                FADE_IN_PROGRESS_CLAMP: 1.0,     // 🎯 淡入进度最大值(0.8-1.0) - 淡入完成阈值
+                SNOW_OPACITY_TARGET: 0.8         // 💨 雪花最终透明度(0.3-1.0) - 雪花最大透明度
+            },
+            
+            // 雪花动画常量 - ❄️ 调整这些值可以改变雪花的动态效果
+            SNOW_ANIMATION: {
+                FALL_SPEED_FACTOR: 0.6,          // ⬇️ 雪花下落速度因子(0.2-1.0) - 雪花下落速度，越小越慢
+                WIND_EFFECT_FACTOR: 0.3,         // 💨 风效果因子(0.1-0.8) - 风的横向影响强度
+                SWAY_X_FREQUENCY: 0.3,           // 🔄 X轴摇摆频率(0.1-0.8) - 左右摇摆速度
+                SWAY_X_AMPLITUDE: 0.005,         // ↔️ X轴摇摆幅度(0.001-0.02) - 左右摇摆距离
+                SWAY_Z_FREQUENCY: 0.4,           // 🔄 Z轴摇摆频率(0.1-0.8) - 前后摇摆速度
+                SWAY_Z_AMPLITUDE: 0.004,         // ↕️ Z轴摇摆幅度(0.001-0.02) - 前后摇摆距离
+                ACTIVATION_DURATION: 0.8,        // ⏰ 雪花激活持续时间(0.3-2.0) - 全部雪花激活完成时间(秒)
+                OPACITY_BASE: 0.6,               // 💧 雪花基础透明度(0.2-0.8) - 雪花基础明度
+                OPACITY_VARIATION: 0.2,          // 🌊 雪花透明度变化幅度(0.05-0.4) - 透明度变化范围
+                OPACITY_FREQUENCY: 0.3            // 🎭 雪花透明度变化频率(0.1-0.8) - 透明度变化速度
+            },
+            
+            // 动画时序常量 - ⏰ 控制每个动画阶段的开始时间和持续时间
+            ANIMATION_PHASES: {
+                // 阶段1：粒子出现阶段 - 从动画开始到所有粒子可见
+                PARTICLES_APPEAR_START: 0,                    // 📅 粒子开始出现时间(ms，相对动画开始)
+                ALL_PARTICLES_VISIBLE_DELAY: 500,           // ⏳ 全部粒子可见后额外延迟(ms)
+                
+                // 阶段2：星形闪耀阶段 - 粒子以星形模式闪烁
+                SPARKLE_DURATION: 2000,                    // ✨ 星形闪耀持续时间(ms)
+                SPARKLE_DELAY_BETWEEN_BATCHES: 0,          // ⏸️ 批次间闪耀延迟(ms)
+                
+                // 阶段3：过渡汇聚阶段 - 粒子从星形汇聚成树形
+                TRANSITION_DURATION: 6000,                 // 🌊 星形到树形过渡时间(ms)
+                TRANSITION_START_DELAY: 0,                  // ⏸️ 过渡开始延迟(ms)
+                
+                // 阶段4：最终成型阶段 - 树完全形成并开始旋转
+                TREE_FORMED_DURATION: 2000,               // 🎄 树成型后稳定持续时间(ms)
+                ROTATION_SPEED_NORMAL: -0.002,             // 🔄 树正常旋转速度(弧度/帧)
+                ROTATION_SPEED_ACCELERATED: -0.004,        // 🚀 过渡阶段加速旋转速度(弧度/帧)
+                
+                // 阶段5：雪花动画阶段 - 独立控制雪花出现时间
+                SNOW_START_DELAY_ABSOLUTE: 4000,           // ❄️ 雪花绝对开始时间(ms，相对动画开始)
+                SNOW_START_DELAY_RELATIVE: 0,              // 🎄 雪花相对树成型延迟(ms，备用选项)
+                SNOW_DURATION: 30000,                     // 💨 雪花动画持续时间(ms，0表示持续)
+                USE_ABSOLUTE_SNOW_TIMING: true,            // ⏰ 是否使用绝对时间控制雪花(否则用相对树成型时间)
+                
+                // 计算辅助常量 - 这些值由上述常量计算得出
+                BATCH_PROCESSING_INTERVAL: 120,              // ⚙️ 批次处理间隔(ms，原BATCH_INTERVAL)
+                ROTATION_ACCELERATION_START_OFFSET: 0,     // 🚀 开始加速旋转的时机偏移(ms)
+                ROTATION_ACCELERATION_END_OFFSET: 0         // 🏁 结束加速旋转的时机偏移(ms)
+            }
         }; // CONFIG对象结束
 
         // 全局变量控制粒子系统状态
@@ -137,12 +218,12 @@
                 // 开始简单的动画循环（只渲染背景）
                 animate();
                 
-                // ⭐ 延迟 500ms 再初始化粒子系统
+                // ⭐ 延迟初始化粒子系统
                 setTimeout(() => {
                     console.log('🌟 开始初始化粒子系统...');
                     initParticles();
                     particlesStarted = true;
-                }, 500);
+                }, CONFIG.TIMING.PARTICLE_INIT_DELAY);
             });
         } // initThreeJs函数结束
         
@@ -232,14 +313,14 @@
                     
                     // 应用暗化滤镜
                     ctx.globalCompositeOperation = 'multiply';
-                    ctx.fillStyle = 'rgba(0, 0, 50, 0.7)';  // 深蓝色覆盖，降低亮度
+                    ctx.fillStyle = `rgba(0, 0, 50, ${CONFIG.BRIGHTNESS.BACKGROUND_MULTIPLY_ALPHA})`;
                     ctx.fillRect(0, 0, canvas.width, canvas.height);
                     
                     // 重置混合模式
                     ctx.globalCompositeOperation = 'source-over';
                     
                     // 稍微增加对比度
-                    ctx.globalAlpha = 0.3;
+                    ctx.globalAlpha = CONFIG.BRIGHTNESS.BACKGROUND_OVERLAY_ALPHA;
                     ctx.fillStyle = '#000000';
                     ctx.fillRect(0, 0, canvas.width, canvas.height);
                     ctx.globalAlpha = 1.0;
@@ -260,7 +341,7 @@
                         console.log('调暗的背景图片已应用');
                         // 背景加载完成，调用回调开始动画
                         onComplete();
-                    }, 100);
+                    }, CONFIG.TIMING.BACKGROUND_RENDER_DELAY);
                 } catch (error) {
                     console.error('❌ 纹理创建失败:', error);
                     // 即使纹理创建失败，也要继续启动动画
@@ -404,7 +485,7 @@
                 
                 // 渐进式激活雪花（0.8秒内逐渐激活所有雪花）
                 if (activeArray[i] === 0 && elapsedSinceSnowStart > 0) {
-                    const activationDelay = (i / particleCount) * 0.8; // 每个粒子延迟激活
+                    const activationDelay = (i / particleCount) * CONFIG.SNOW_ANIMATION.ACTIVATION_DURATION;
                     if (elapsedSinceSnowStart >= activationDelay) {
                         activeArray[i] = 1;
                         // 将活跃粒子从高处开始下落
@@ -415,15 +496,15 @@
                 // 只有活跃的雪花才参与动画
                 if (activeArray[i] === 1) {
                     // 雪花下落 - 使用更自然的速度
-                    positionsArray[i3 + 1] -= speed * 0.6; // 降低下落速度
+                    positionsArray[i3 + 1] -= speed * CONFIG.SNOW_ANIMATION.FALL_SPEED_FACTOR;
                     
                     // 风的影响（更轻微）
-                    positionsArray[i3] += WIND_DIRECTION.x * 0.3;
-                    positionsArray[i3 + 2] += WIND_DIRECTION.z * 0.3;
+                    positionsArray[i3] += WIND_DIRECTION.x * CONFIG.SNOW_ANIMATION.WIND_EFFECT_FACTOR;
+                    positionsArray[i3 + 2] += WIND_DIRECTION.z * CONFIG.SNOW_ANIMATION.WIND_EFFECT_FACTOR;
                     
                     // 左右摇摆（更缓慢）
-                    positionsArray[i3] += Math.sin(time * 0.3 + i * 0.1) * 0.005;
-                    positionsArray[i3 + 2] += Math.cos(time * 0.4 + i * 0.15) * 0.004;
+                    positionsArray[i3] += Math.sin(time * CONFIG.SNOW_ANIMATION.SWAY_X_FREQUENCY + i * 0.1) * CONFIG.SNOW_ANIMATION.SWAY_X_AMPLITUDE;
+                    positionsArray[i3 + 2] += Math.cos(time * CONFIG.SNOW_ANIMATION.SWAY_Z_FREQUENCY + i * 0.15) * CONFIG.SNOW_ANIMATION.SWAY_Z_AMPLITUDE;
                     
                     // 雪花重新生成
                     if (positionsArray[i3 + 1] < MIN_HEIGHT) {
@@ -439,7 +520,9 @@
             
             // 雪花透明度变化 - 只在淡入完成后才应用动态变化
             if (fadeInComplete && snowParticles.material) {
-                snowParticles.material.opacity = 0.6 + Math.sin(time * 0.3) * 0.2;
+                snowParticles.material.opacity = CONFIG.SNOW_ANIMATION.OPACITY_BASE + 
+                                         Math.sin(time * CONFIG.SNOW_ANIMATION.OPACITY_FREQUENCY) * 
+                                         CONFIG.SNOW_ANIMATION.OPACITY_VARIATION;
             }
         }
         
@@ -581,8 +664,8 @@
             const trunkColor = CONFIG.COLORS.TREE[9];
             data.color.set(trunkColor.r, trunkColor.g, trunkColor.b);
             
-            // 设置大小
-            data.size = 2 + Math.random() * 3;
+            // 设置大小 - 增大树干粒子
+            data.size = CONFIG.SIZES.TRUNK_BASE + Math.random() * CONFIG.SIZES.TRUNK_VARIANCE;
         }
         
         /**
@@ -649,18 +732,22 @@
             const colorIndex = determineLeafColorIndex(isRibbon, ribbonColorIndex, heightRatio);
             const color = CONFIG.COLORS.TREE[colorIndex];
             
-            // 应用阴影效果（仅普通树叶）
+            // 应用阴影效果（仅普通树叶）- 调亮
             if (!isRibbon) {
-                const shadowFactor = 0.8 + heightRatio * 0.2;
+                const shadowFactor = CONFIG.BRIGHTNESS.TRUNK_SHADOW_BASE + heightRatio * CONFIG.BRIGHTNESS.TRUNK_SHADOW_HEIGHT_FACTOR;
                 data.color.setRGB(color.r * shadowFactor, color.g * shadowFactor, color.b * shadowFactor);
             } else {
-                data.color.setRGB(color.r, color.g, color.b);
+                // 彩带也稍微调亮
+                const brightness = CONFIG.BRIGHTNESS.RIBBON_BRIGHTNESS_MULTIPLIER;
+                data.color.setRGB(color.r * brightness, color.g * brightness, color.b * brightness);
             }
             
-            // 设置大小
-            const sizeFactor = heightRatio > 0.8 ? 0.8 : 1.0;
-            const ribbonSizeFactor = isRibbon ? 1.8 : 1.0;
-            data.size = (1.5 + Math.random() * 3) * sizeFactor * ribbonSizeFactor * (0.9 + Math.random() * 0.2);
+            // 设置大小 - 增大树叶粒子
+            const sizeFactor = heightRatio > 0.8 ? CONFIG.SIZES.TOP_SIZE_FACTOR : CONFIG.SIZES.NORMAL_SIZE_FACTOR;
+            const ribbonSizeFactor = isRibbon ? CONFIG.SIZES.RIBBON_MULTIPLIER : 1.0;
+            data.size = (CONFIG.SIZES.LEAF_BASE + Math.random() * CONFIG.SIZES.LEAF_VARIANCE) * 
+                       sizeFactor * ribbonSizeFactor * 
+                       (CONFIG.SIZES.SIZE_VARIANCE_BASE + Math.random() * CONFIG.SIZES.SIZE_VARIANCE_RANGE);
         }
         
         /**
@@ -774,7 +861,7 @@
          */
         function updateBatchVisibility(batches, startTime) {
             const elapsed = Date.now() - startTime;
-            const interval = CONFIG.TREE.BATCH_INTERVAL;
+            const interval = CONFIG.ANIMATION_PHASES.BATCH_PROCESSING_INTERVAL;
             const visibleCount = Math.floor(elapsed / interval);
             
             for (let i = 0; i < batches.length; i++) {
@@ -807,18 +894,20 @@
          */
         function updateBatchMovement(batches, startTime) {
             const now = Date.now();
-            const appearInterval = CONFIG.TREE.BATCH_INTERVAL;
-            const starPhaseDuration = CONFIG.ANIMATION.PARTICLE_ANIMATION.STAR_PHASE_DURATION;
-            const transitionDuration = CONFIG.ANIMATION.PARTICLE_ANIMATION.TRANSITION_DURATION;
+            const starPhaseDuration = CONFIG.ANIMATION_PHASES.SPARKLE_DURATION;
+            const transitionDuration = CONFIG.ANIMATION_PHASES.TRANSITION_DURATION;
             
             // 计算关键时间点
-            const allParticlesVisibleTime = startTime + CONFIG.TREE.BATCH_INTERVAL * Math.ceil(CONFIG.TREE.PARTICLE_COUNT / CONFIG.TREE.BATCH_SIZE) + CONFIG.ANIMATION.PARTICLE_ANIMATION.ALL_PARTICLES_VISIBLE_DELAY;
-            const starPhaseEndTime = allParticlesVisibleTime + starPhaseDuration;
-            const transitionEndTime = starPhaseEndTime + transitionDuration;
+            const totalBatches = Math.ceil(CONFIG.TREE.PARTICLE_COUNT / CONFIG.TREE.BATCH_SIZE);
+            const allParticlesVisibleTime = startTime + 
+                CONFIG.ANIMATION_PHASES.BATCH_PROCESSING_INTERVAL * totalBatches + 
+                CONFIG.ANIMATION_PHASES.ALL_PARTICLES_VISIBLE_DELAY;
+            const starPhaseEndTime = allParticlesVisibleTime + CONFIG.ANIMATION_PHASES.SPARKLE_DURATION;
+            const transitionEndTime = starPhaseEndTime + CONFIG.ANIMATION_PHASES.TRANSITION_DURATION;
             
             batches.forEach((points, batchIndex) => {
                 const time = Date.now() * 0.001;
-                const batchAppearTime = startTime + batchIndex * appearInterval;
+                const batchAppearTime = startTime + batchIndex * CONFIG.ANIMATION_PHASES.BATCH_PROCESSING_INTERVAL;
                 const elapsedSinceAppear = now - batchAppearTime;
                 
                 if (elapsedSinceAppear <= 0) {
@@ -832,21 +921,21 @@
                 
                 if (now < allParticlesVisibleTime) {
                     // 阶段0：粒子出现阶段，逐渐显示
-                    const appearProgress = THREE.MathUtils.clamp(elapsedSinceAppear / 500, 0, 1);
-                    sparkle = 0.7 + Math.sin(time * 6 + batchIndex) * 0.3;
+                    const appearProgress = THREE.MathUtils.clamp(elapsedSinceAppear / CONFIG.TIMING.APPEAR_DURATION, 0, 1);
+                    sparkle = CONFIG.BRIGHTNESS.SPARKLE_BASE_INITIAL + Math.sin(time * 6 + batchIndex) * CONFIG.BRIGHTNESS.SPARKLE_AMPLITUDE_INITIAL;
                     convergeBrightness = appearProgress;
                 } else if (now < starPhaseEndTime) {
                     // 阶段1：星形闪耀阶段
-                    sparkle = 0.7 + Math.sin(time * 6 + batchIndex) * 0.3;
+                    sparkle = CONFIG.BRIGHTNESS.SPARKLE_BASE_INITIAL + Math.sin(time * 6 + batchIndex) * CONFIG.BRIGHTNESS.SPARKLE_AMPLITUDE_INITIAL;
                     convergeBrightness = 1.0;
                 } else if (now < transitionEndTime) {
                     // 阶段2：过渡汇聚阶段
                     const transitionProgress = THREE.MathUtils.clamp((now - starPhaseEndTime) / transitionDuration, 0, 1);
-                    sparkle = 0.7 + Math.sin(time * 6 + batchIndex) * 0.3;
+                    sparkle = CONFIG.BRIGHTNESS.SPARKLE_BASE_INITIAL + Math.sin(time * 6 + batchIndex) * CONFIG.BRIGHTNESS.SPARKLE_AMPLITUDE_INITIAL;
                     convergeBrightness = 1.0;
                 } else {
                     // 阶段3：最终形成树
-                    sparkle = 0.9 + Math.sin(time * 3 + batchIndex) * 0.1;
+                    sparkle = CONFIG.BRIGHTNESS.SPARKLE_BASE_FINAL + Math.sin(time * 3 + batchIndex) * CONFIG.BRIGHTNESS.SPARKLE_AMPLITUDE_FINAL;
                     convergeBrightness = 1.0;
                 }
                 
@@ -984,11 +1073,14 @@
                 
                 // 圣诞树旋转逻辑
                 const now = Date.now();
-                // 计算关键时间点
-                const allParticlesVisibleTime = animationState.startTime + CONFIG.TREE.BATCH_INTERVAL * Math.ceil(CONFIG.TREE.PARTICLE_COUNT / CONFIG.TREE.BATCH_SIZE) + CONFIG.ANIMATION.PARTICLE_ANIMATION.ALL_PARTICLES_VISIBLE_DELAY;
-                const starPhaseEndTime = allParticlesVisibleTime + CONFIG.ANIMATION.PARTICLE_ANIMATION.STAR_PHASE_DURATION;
-                const transitionDuration = CONFIG.ANIMATION.PARTICLE_ANIMATION.TRANSITION_DURATION;
-                const transitionEndTime = starPhaseEndTime + transitionDuration;
+            // 计算关键时间点
+            const totalBatches = Math.ceil(CONFIG.TREE.PARTICLE_COUNT / CONFIG.TREE.BATCH_SIZE);
+            const allParticlesVisibleTime = animationState.startTime + 
+                CONFIG.ANIMATION_PHASES.BATCH_PROCESSING_INTERVAL * totalBatches + 
+                CONFIG.ANIMATION_PHASES.ALL_PARTICLES_VISIBLE_DELAY;
+            const starPhaseEndTime = allParticlesVisibleTime + CONFIG.ANIMATION_PHASES.SPARKLE_DURATION;
+            const transitionDuration = CONFIG.ANIMATION_PHASES.TRANSITION_DURATION;
+            const transitionEndTime = starPhaseEndTime + transitionDuration;
                 
                 // 使用监听器检测树是否完全成型
                 const treeJustCompleted = checkTreeCompletion(particleBatches, animationState);
@@ -1001,15 +1093,15 @@
                     animationState.snowStartTime = now;
                 }
                 
-                // 只有在过渡汇聚阶段才开始加速旋转
-                if (now >= starPhaseEndTime && now < transitionEndTime) {
-                    treeGroup.rotation.y += CONFIG.TREE.ROTATION_SPEED * 2; // 移动阶段加速旋转
-                    if (!animationState.isRotating) {
-                        animationState.isRotating = true;
-                    }
-                } else if (now >= transitionEndTime) {
-                    treeGroup.rotation.y += CONFIG.TREE.ROTATION_SPEED; // 完成后正常旋转
+            // 只有在过渡汇聚阶段才开始加速旋转
+            if (now >= starPhaseEndTime && now < transitionEndTime) {
+                treeGroup.rotation.y += CONFIG.ANIMATION_PHASES.ROTATION_SPEED_ACCELERATED; // 移动阶段加速旋转
+                if (!animationState.isRotating) {
+                    animationState.isRotating = true;
                 }
+            } else if (now >= transitionEndTime) {
+                treeGroup.rotation.y += CONFIG.ANIMATION_PHASES.ROTATION_SPEED_NORMAL; // 完成后正常旋转
+            }
                 
                 // 更新相机位置
                 updateCameraPosition(camera, cameraControls);
@@ -1019,11 +1111,11 @@
                     // 添加淡入效果
                     let fadeInComplete = false;
                     if (animationState.snowStartTime > 0) {
-                        const snowFadeInDuration = 500; // 0.5秒淡入时间
+                        const snowFadeInDuration = CONFIG.TIMING.SNOW_FADE_IN_DURATION;
                         const elapsedSinceSnowStart = now - animationState.snowStartTime;
                         const fadeInProgress = THREE.MathUtils.clamp(elapsedSinceSnowStart / snowFadeInDuration, 0, 1);
-                        snowSystem.snowParticles.material.opacity = fadeInProgress * 0.8;
-                        fadeInComplete = fadeInProgress >= 1.0;
+                        snowSystem.snowParticles.material.opacity = fadeInProgress * CONFIG.TIMING.SNOW_OPACITY_TARGET;
+                        fadeInComplete = fadeInProgress >= CONFIG.TIMING.FADE_IN_PROGRESS_CLAMP;
                     }
                     
                     snowSystem.updateSnowAnimation(time, fadeInComplete, animationState.snowStartTime);

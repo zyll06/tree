@@ -138,7 +138,7 @@
             
             // 雪花动画常量 - ❄️ 调整这些值可以改变雪花的动态效果
             SNOW_ANIMATION: {
-                FALL_SPEED_FACTOR: 0.6,          // ⬇️ 雪花下落速度因子(0.2-1.0) - 雪花下落速度，越小越慢
+                FALL_SPEED_FACTOR: 0.37,          // ⬇️ 雪花下落速度因子(0.2-1.0) - 雪花下落速度，越小越慢
                 WIND_EFFECT_FACTOR: 0.3,         // 💨 风效果因子(0.1-0.8) - 风的横向影响强度
                 SWAY_X_FREQUENCY: 0.3,           // 🔄 X轴摇摆频率(0.1-0.8) - 左右摇摆速度
                 SWAY_X_AMPLITUDE: 0.005,         // ↔️ X轴摇摆幅度(0.001-0.02) - 左右摇摆距离
@@ -147,7 +147,14 @@
                 ACTIVATION_DURATION: 0.8,        // ⏰ 雪花激活持续时间(0.3-2.0) - 全部雪花激活完成时间(秒)
                 OPACITY_BASE: 0.6,               // 💧 雪花基础透明度(0.2-0.8) - 雪花基础明度
                 OPACITY_VARIATION: 0.2,          // 🌊 雪花透明度变化幅度(0.05-0.4) - 透明度变化范围
-                OPACITY_FREQUENCY: 0.3            // 🎭 雪花透明度变化频率(0.1-0.8) - 透明度变化速度
+                OPACITY_FREQUENCY: 0.3,          // 🎭 雪花透明度变化频率(0.1-0.8) - 透明度变化速度
+            // 🌨️ 分段式速度过渡常量 - 慢速→中速→正常速度
+            SLOW_PHASE_DURATION: 1.5,        // 🐌 慢速阶段持续时间(0.5-3.0秒) - 初始极慢飘落
+            MEDIUM_PHASE_DURATION: 3.0,      // 🚶 中速阶段持续时间(1.0-4.0秒) - 中等速度飘落  
+            INITIAL_SPEED_FACTOR: 0.05,      // 🌟 极慢速度因子(0.02-0.1) - 初始飘落速度
+            MEDIUM_SPEED_FACTOR: 0.2,        // 🌤️ 中速速度因子(0.1-0.4) - 中期飘落速度
+            SLOW_EASING_EXPONENT: 2.0,       // 📈 慢→中速缓动指数(1.0-3.0) - 第一阶段加速曲线
+            MEDIUM_EASING_EXPONENT: 2.5      // 📊 中→正常速缓动指数(1.0-4.0) - 第二阶段加速曲线
             },
             
             // 动画时序常量 - ⏰ 控制每个动画阶段的开始时间和持续时间
@@ -170,10 +177,10 @@
                 ROTATION_SPEED_ACCELERATED: -0.004,        // 🚀 过渡阶段加速旋转速度(弧度/帧)
                 
                 // 阶段5：雪花动画阶段 - 独立控制雪花出现时间
-                SNOW_START_DELAY_ABSOLUTE: 4000,           // ❄️ 雪花绝对开始时间(ms，相对动画开始)
+                SNOW_START_DELAY_ABSOLUTE: 4000,         // ❄️ 雪花绝对开始时间(ms，相对动画开始)
                 SNOW_START_DELAY_RELATIVE: 0,              // 🎄 雪花相对树成型延迟(ms，备用选项)
                 SNOW_DURATION: 30000,                     // 💨 雪花动画持续时间(ms，0表示持续)
-                USE_ABSOLUTE_SNOW_TIMING: true,            // ⏰ 是否使用绝对时间控制雪花(否则用相对树成型时间)
+                USE_ABSOLUTE_SNOW_TIMING: true ,            // ⏰ 是否使用绝对时间控制雪花(否则用相对树成型时间)
                 
                 // 计算辅助常量 - 这些值由上述常量计算得出
                 BATCH_PROCESSING_INTERVAL: 120,              // ⚙️ 批次处理间隔(ms，原BATCH_INTERVAL)
@@ -479,6 +486,28 @@
             
             const elapsedSinceSnowStart = snowStartTime ? (Date.now() - snowStartTime) / 1000 : 0;
             
+            // 🌨️ 计算三阶段速度因子 - 慢速→中速→正常速度
+            let currentSpeedFactor = CONFIG.SNOW_ANIMATION.FALL_SPEED_FACTOR;
+            
+            if (elapsedSinceSnowStart > 0) {
+                const totalTransitionTime = CONFIG.SNOW_ANIMATION.SLOW_PHASE_DURATION + CONFIG.SNOW_ANIMATION.MEDIUM_PHASE_DURATION;
+                
+                if (elapsedSinceSnowStart <= CONFIG.SNOW_ANIMATION.SLOW_PHASE_DURATION) {
+                    // 🐌 第一阶段：极慢速度
+                    const progress = elapsedSinceSnowStart / CONFIG.SNOW_ANIMATION.SLOW_PHASE_DURATION;
+                    const easedProgress = 1 - Math.pow(1 - progress, CONFIG.SNOW_ANIMATION.SLOW_EASING_EXPONENT);
+                    currentSpeedFactor = CONFIG.SNOW_ANIMATION.INITIAL_SPEED_FACTOR + 
+                                       (CONFIG.SNOW_ANIMATION.MEDIUM_SPEED_FACTOR - CONFIG.SNOW_ANIMATION.INITIAL_SPEED_FACTOR) * easedProgress;
+                } else if (elapsedSinceSnowStart <= totalTransitionTime) {
+                    // 🚶 第二阶段：中速过渡到正常速度
+                    const phaseProgress = (elapsedSinceSnowStart - CONFIG.SNOW_ANIMATION.SLOW_PHASE_DURATION) / CONFIG.SNOW_ANIMATION.MEDIUM_PHASE_DURATION;
+                    const easedProgress = 1 - Math.pow(1 - phaseProgress, CONFIG.SNOW_ANIMATION.MEDIUM_EASING_EXPONENT);
+                    currentSpeedFactor = CONFIG.SNOW_ANIMATION.MEDIUM_SPEED_FACTOR + 
+                                       (CONFIG.SNOW_ANIMATION.FALL_SPEED_FACTOR - CONFIG.SNOW_ANIMATION.MEDIUM_SPEED_FACTOR) * easedProgress;
+                }
+                // 🏃 第三阶段：已经达到正常速度，保持不变
+            }
+            
             for (let i = 0; i < particleCount; i++) {
                 const i3 = i * 3;
                 const speed = snowSpeeds[i];
@@ -495,16 +524,33 @@
                 
                 // 只有活跃的雪花才参与动画
                 if (activeArray[i] === 1) {
-                    // 雪花下落 - 使用更自然的速度
-                    positionsArray[i3 + 1] -= speed * CONFIG.SNOW_ANIMATION.FALL_SPEED_FACTOR;
+                    // 🌨️ 雪花下落 - 使用随时间逐渐加速的速度
+                    positionsArray[i3 + 1] -= speed * currentSpeedFactor;
                     
-                    // 风的影响（更轻微）
-                    positionsArray[i3] += WIND_DIRECTION.x * CONFIG.SNOW_ANIMATION.WIND_EFFECT_FACTOR;
-                    positionsArray[i3 + 2] += WIND_DIRECTION.z * CONFIG.SNOW_ANIMATION.WIND_EFFECT_FACTOR;
+                    // 🌨️ 风的影响 - 初始阶段也更轻微，逐渐增强
+                    const windEffectFactor = CONFIG.SNOW_ANIMATION.WIND_EFFECT_FACTOR;
+                    positionsArray[i3] += WIND_DIRECTION.x * windEffectFactor;
+                    positionsArray[i3 + 2] += WIND_DIRECTION.z * windEffectFactor;
                     
-                    // 左右摇摆（更缓慢）
-                    positionsArray[i3] += Math.sin(time * CONFIG.SNOW_ANIMATION.SWAY_X_FREQUENCY + i * 0.1) * CONFIG.SNOW_ANIMATION.SWAY_X_AMPLITUDE;
-                    positionsArray[i3 + 2] += Math.cos(time * CONFIG.SNOW_ANIMATION.SWAY_Z_FREQUENCY + i * 0.15) * CONFIG.SNOW_ANIMATION.SWAY_Z_AMPLITUDE;
+                    // 🌨️ 左右摇摆 - 配合三阶段速度过渡的摇摆效果
+                    let swayFactor = 1.0;
+                    if (elapsedSinceSnowStart <= CONFIG.SNOW_ANIMATION.SLOW_PHASE_DURATION) {
+                        // 极慢阶段：最小摇摆
+                        swayFactor = 0.1 + 0.4 * (elapsedSinceSnowStart / CONFIG.SNOW_ANIMATION.SLOW_PHASE_DURATION);
+                    } else if (elapsedSinceSnowStart <= CONFIG.SNOW_ANIMATION.SLOW_PHASE_DURATION + CONFIG.SNOW_ANIMATION.MEDIUM_PHASE_DURATION) {
+                        // 中速阶段：逐渐增加摇摆到正常
+                        const mediumProgress = (elapsedSinceSnowStart - CONFIG.SNOW_ANIMATION.SLOW_PHASE_DURATION) / CONFIG.SNOW_ANIMATION.MEDIUM_PHASE_DURATION;
+                        swayFactor = 0.5 + 0.5 * mediumProgress;
+                    }
+                    // 正常阶段：保持完整摇摆
+                    
+                    const swayXAmplitude = CONFIG.SNOW_ANIMATION.SWAY_X_AMPLITUDE * swayFactor;
+                    const swayZAmplitude = CONFIG.SNOW_ANIMATION.SWAY_Z_AMPLITUDE * swayFactor;
+                    const swayXFrequency = CONFIG.SNOW_ANIMATION.SWAY_X_FREQUENCY * swayFactor;
+                    const swayZFrequency = CONFIG.SNOW_ANIMATION.SWAY_Z_FREQUENCY * swayFactor;
+                    
+                    positionsArray[i3] += Math.sin(time * swayXFrequency + i * 0.1) * swayXAmplitude;
+                    positionsArray[i3 + 2] += Math.cos(time * swayZFrequency + i * 0.15) * swayZAmplitude;
                     
                     // 雪花重新生成
                     if (positionsArray[i3 + 1] < MIN_HEIGHT) {
@@ -1085,12 +1131,26 @@
                 // 使用监听器检测树是否完全成型
                 const treeJustCompleted = checkTreeCompletion(particleBatches, animationState);
                 
-                // 树成型检查和雪花启动（使用监听器）
-                if (!animationState.snowStarted && treeJustCompleted) {
-                    snowSystem.snowParticles.visible = true;
-                    snowSystem.snowParticles.material.opacity = 0;
-                    animationState.snowStarted = true;
-                    animationState.snowStartTime = now;
+                // 雪花启动逻辑（支持绝对时间和相对时间两种模式）
+                if (!animationState.snowStarted) {
+                    let shouldStartSnow = false;
+                    
+                    if (CONFIG.ANIMATION_PHASES.USE_ABSOLUTE_SNOW_TIMING) {
+                        // 使用绝对时间控制：从动画开始计算固定延迟
+                        const elapsedSinceAnimationStart = now - animationState.startTime;
+                        shouldStartSnow = elapsedSinceAnimationStart >= CONFIG.ANIMATION_PHASES.SNOW_START_DELAY_ABSOLUTE;
+                    } else {
+                        // 使用相对时间控制：树成型后才开始
+                        shouldStartSnow = treeJustCompleted;
+                    }
+                    
+                    if (shouldStartSnow) {
+                        snowSystem.snowParticles.visible = true;
+                        snowSystem.snowParticles.material.opacity = 0;
+                        animationState.snowStarted = true;
+                        animationState.snowStartTime = now;
+                        console.log('❄️ 雪花动画开始，使用模式：', CONFIG.ANIMATION_PHASES.USE_ABSOLUTE_SNOW_TIMING ? '绝对时间' : '相对时间');
+                    }
                 }
                 
             // 只有在过渡汇聚阶段才开始加速旋转

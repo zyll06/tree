@@ -1,0 +1,980 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>圣诞树</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <script src="three.min.js"></script>
+    <script>
+        // 常量定义
+        const CONFIG = {
+            // 雪花系统配置
+            SNOW: {
+                COUNT: 3000, // 减少雪花数量提高性能
+                MAX_HEIGHT: 30,
+                MIN_HEIGHT: -5,
+                RANGE: 40,
+                WIND_DIRECTION: new THREE.Vector3(-0.015, 0, -0.008),
+                BASE_SPEED: 0.055, // 提高基础下落速度
+                SPEED_VARIANCE: 0.12 // 增加速度变化范围，使下落更自然
+            },
+            // 树系统配置
+            TREE: {
+                PARTICLE_COUNT: 7000, // 调整粒子数量为7000
+                TRUNK_RATIO: 0.15,
+                TRUNK_HEIGHT: 2,
+                TRUNK_BASE_RADIUS: 0.6,
+                TRUNK_TOP_RADIUS: 0.2,
+                LEAF_HEIGHT_RANGE: 10,
+                LEAF_BASE_HEIGHT: 1,
+                LEAF_BASE_RADIUS: 4.26,
+                RIBBON_PROBABILITY: 0.03,
+                RIBBON_COUNT: 3,
+                RIBBON_SPIRAL_TURNS: 3,
+                POSITION_OFFSET: new THREE.Vector3(0, -7, 0),
+                SCALE: new THREE.Vector3(2, 2.2, 2),
+                TILT_X: THREE.MathUtils.degToRad(-30),
+                ROTATION_SPEED: -0.002,
+                BATCH_SIZE: 600,          // 批次大小适应7000粒子
+                BATCH_INTERVAL: 120       // 每 120ms 点亮一批，使星星一颗一颗点亮
+            },
+            // 相机配置
+            CAMERA: {
+                FOV: 65,
+                NEAR: 0.1,
+                FAR: 1000,
+                INITIAL_POSITION: new THREE.Vector3(12, 7, 12),
+                TARGET: new THREE.Vector3(0, 4, 0)
+            },
+            // 灯光配置
+            LIGHTS: [
+                { color: 0xff0000, intensity: 0.8, distance: 5, flickerSpeed: 1.0 },  // 红色
+                { color: 0x00ff00, intensity: 0.6, distance: 4, flickerSpeed: 1.2 },  // 绿色
+                { color: 0x0000ff, intensity: 0.7, distance: 4.5, flickerSpeed: 2.0 },  // 蓝色
+                { color: 0xffff00, intensity: 0.9, distance: 5.5, flickerSpeed: 1.5 }   // 黄色
+            ],
+            // 颜色配置
+            COLORS: {
+                TREE: [
+                    new THREE.Color(0x008800),  // 深绿色（主体）
+                    new THREE.Color(0x006600),  // 更深的绿色（主体）
+                    new THREE.Color(0x009933),  // 冷绿色（主体）
+                    new THREE.Color(0x005522),  // 最冷的绿色（主体）
+                    new THREE.Color(0xff0000),  // 红色（装饰）
+                    new THREE.Color(0xffcc00),  // 金色（装饰）
+                    new THREE.Color(0x0000cc),  // 深蓝色（装饰）
+                    new THREE.Color(0xffffcc),  // 淡黄色（高光）
+                    new THREE.Color(0xffffff),  // 白色（高光）
+                    new THREE.Color(0x5D3A00)   // 深棕色（树干）
+                ],
+                RIBBON: [4, 5, 6]  // 彩带使用的颜色索引
+            },
+            // 动画配置
+            ANIMATION: {
+                PULSE_SPEED: 2.0,
+                PULSE_AMOUNT: 0.1,
+                DECORATION_FLICKER_SPEED: 5.0,
+                PARTICLE_ANIMATION: {
+                    STAR_PHASE_DURATION: 4000,  // 星形闪耀阶段持续时间（毫秒）
+                    TRANSITION_DURATION: 8000,   // 从星形到树形态过渡时间（毫秒），使汇聚过程更慢
+                    START_DELAY: 200,  // 开始延迟（毫秒）
+                    EASE_FACTOR: 1.2,  // 减小加速度因子，使过渡更平缓
+                    INITIAL_RADIUS: 40,  // 粒子初始随机分布半径
+                    ALL_PARTICLES_VISIBLE_DELAY: 500   // 等待所有粒子出现后再开始移动
+                }
+            }
+        };
+
+        // 页面加载完成后初始化Three.js
+        window.addEventListener('DOMContentLoaded', initThreeJs);
+        
+        /**
+         * Three.js主初始化函数
+         * 负责创建和配置3D场景、相机、渲染器等核心组件
+         */
+        function initThreeJs() {
+            // 创建Three.js场景对象
+            const scene = new THREE.Scene();
+            
+            // 初始化相机
+            const camera = createCamera();
+            
+            // 初始化渲染器
+            const renderer = createRenderer();
+            
+            // 加载背景图片
+            loadBackgroundTexture(scene);
+            
+            // 创建雪花粒子系统（初始隐藏）
+            const snowSystem = createSnowParticles(scene);
+            snowSystem.snowParticles.visible = false; // 初始隐藏雪粒子
+            
+            // 创建圣诞树
+            const { 
+                treeGroup, 
+                particleBatches, 
+                coloredLightObjects,
+                animationState
+            } = createChristmasTree(scene);
+            
+            // 初始化相机控制参数
+            const cameraControls = initCameraControls(camera);
+            
+            // 开始动画循环
+            animate({
+                scene, 
+                camera, 
+                renderer, 
+                snowSystem, 
+                treeGroup, 
+                particleBatches, 
+                coloredLightObjects, 
+                cameraControls,
+                animationState
+            });
+            
+            // 添加窗口大小调整事件监听
+            window.addEventListener('resize', () => onWindowResize(camera, renderer));
+        }
+        
+        /**
+         * 创建透视相机
+         */
+        function createCamera() {
+            const camera = new THREE.PerspectiveCamera(
+                CONFIG.CAMERA.FOV,
+                window.innerWidth / window.innerHeight,
+                CONFIG.CAMERA.NEAR,
+                CONFIG.CAMERA.FAR
+            );
+            
+            camera.position.copy(CONFIG.CAMERA.INITIAL_POSITION);
+            camera.lookAt(CONFIG.CAMERA.TARGET);
+            
+            return camera;
+        }
+        
+        /**
+         * 创建WebGL渲染器
+         */
+        function createRenderer() {
+            const renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = false; // 禁用阴影映射提高性能
+            document.body.appendChild(renderer.domElement);
+            
+            return renderer;
+        }
+        
+        /**
+         * 加载背景纹理
+         */
+        function loadBackgroundTexture(scene) {
+            const textureLoader = new THREE.TextureLoader();
+            
+            textureLoader.load('圣诞树.jpg', (texture) => {
+                texture.colorSpace = THREE.SRGBColorSpace;
+                texture.minFilter = THREE.LinearFilter;
+                texture.magFilter = THREE.LinearFilter;
+                scene.background = texture;
+            });
+        }
+        
+        /**
+         * 创建雪花粒子系统（渐进式）
+         */
+        function createSnowParticles(scene) {
+            const { COUNT, MAX_HEIGHT, RANGE, BASE_SPEED, SPEED_VARIANCE } = CONFIG.SNOW;
+            
+            // 创建几何体
+            const snowGeometry = new THREE.BufferGeometry();
+            
+            // 创建属性数组
+            const snowPositions = new Float32Array(COUNT * 3);
+            const snowColors = new Float32Array(COUNT * 3);
+            const snowSizes = new Float32Array(COUNT);
+            const snowSpeeds = new Float32Array(COUNT);
+            const snowActive = new Float32Array(COUNT); // 控制每个粒子是否活跃
+            
+            // 白色雪花
+            const whiteColor = new THREE.Color(0xffffff);
+            const whiteColorArray = [whiteColor.r, whiteColor.g, whiteColor.b];
+            
+            // 初始化雪花粒子（初始都不活跃）
+            for (let i = 0; i < COUNT; i++) {
+                const i3 = i * 3;
+                
+                // 随机位置（初始在很高的地方）
+                snowPositions[i3] = (Math.random() - 0.5) * RANGE;
+                snowPositions[i3 + 1] = MAX_HEIGHT + Math.random() * 10; // 初始位置更高
+                snowPositions[i3 + 2] = (Math.random() - 0.5) * RANGE;
+                
+                // 白色
+                snowColors.set(whiteColorArray, i3);
+                
+                // 随机大小
+                snowSizes[i] = 0.05 + Math.random() * 0.2;
+                
+                // 随机速度
+                snowSpeeds[i] = BASE_SPEED + Math.random() * SPEED_VARIANCE;
+                
+                // 初始不活跃
+                snowActive[i] = 0;
+            }
+            
+            // 设置几何体属性
+            snowGeometry.setAttribute('position', new THREE.BufferAttribute(snowPositions, 3));
+            snowGeometry.setAttribute('color', new THREE.BufferAttribute(snowColors, 3));
+            snowGeometry.setAttribute('size', new THREE.BufferAttribute(snowSizes, 1));
+            snowGeometry.setAttribute('active', new THREE.BufferAttribute(snowActive, 1));
+            
+            // 创建材质
+            const snowMaterial = new THREE.PointsMaterial({
+                size: 0.1,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.8,
+                blending: THREE.AdditiveBlending,
+                sizeAttenuation: true
+            });
+            
+            // 创建粒子系统
+            const snowParticles = new THREE.Points(snowGeometry, snowMaterial);
+            scene.add(snowParticles);
+            
+            // 返回动画更新函数
+            return {
+                snowParticles,
+                updateSnowAnimation: (time, fadeInComplete, snowStartTime) => updateSnowAnimation(snowParticles, COUNT, snowSpeeds, time, fadeInComplete, snowStartTime)
+            };
+        }
+        
+        /**
+         * 更新雪花动画（渐进式激活）
+         */
+        function updateSnowAnimation(snowParticles, particleCount, snowSpeeds, time, fadeInComplete, snowStartTime) {
+            const { MAX_HEIGHT, MIN_HEIGHT, RANGE, WIND_DIRECTION, BASE_SPEED, SPEED_VARIANCE } = CONFIG.SNOW;
+            const positionsArray = snowParticles.geometry.attributes.position.array;
+            const activeArray = snowParticles.geometry.attributes.active.array;
+            
+            const elapsedSinceSnowStart = snowStartTime ? (Date.now() - snowStartTime) / 1000 : 0;
+            
+            for (let i = 0; i < particleCount; i++) {
+                const i3 = i * 3;
+                const speed = snowSpeeds[i];
+                
+                // 渐进式激活雪花（0.8秒内逐渐激活所有雪花）
+                if (activeArray[i] === 0 && elapsedSinceSnowStart > 0) {
+                    const activationDelay = (i / particleCount) * 0.8; // 每个粒子延迟激活
+                    if (elapsedSinceSnowStart >= activationDelay) {
+                        activeArray[i] = 1;
+                        // 将活跃粒子从高处开始下落
+                        positionsArray[i3 + 1] = MAX_HEIGHT + Math.random() * 5;
+                    }
+                }
+                
+                // 只有活跃的雪花才参与动画
+                if (activeArray[i] === 1) {
+                    // 雪花下落 - 使用更自然的速度
+                    positionsArray[i3 + 1] -= speed * 0.6; // 降低下落速度
+                    
+                    // 风的影响（更轻微）
+                    positionsArray[i3] += WIND_DIRECTION.x * 0.3;
+                    positionsArray[i3 + 2] += WIND_DIRECTION.z * 0.3;
+                    
+                    // 左右摇摆（更缓慢）
+                    positionsArray[i3] += Math.sin(time * 0.3 + i * 0.1) * 0.005;
+                    positionsArray[i3 + 2] += Math.cos(time * 0.4 + i * 0.15) * 0.004;
+                    
+                    // 雪花重新生成
+                    if (positionsArray[i3 + 1] < MIN_HEIGHT) {
+                        positionsArray[i3 + 1] = MAX_HEIGHT + Math.random() * 10;
+                        positionsArray[i3] = (Math.random() - 0.5) * RANGE;
+                        positionsArray[i3 + 2] = (Math.random() - 0.5) * RANGE;
+                    }
+                }
+            }
+            
+            snowParticles.geometry.attributes.position.needsUpdate = true;
+            snowParticles.geometry.attributes.active.needsUpdate = true;
+            
+            // 雪花透明度变化 - 只在淡入完成后才应用动态变化
+            if (fadeInComplete && snowParticles.material) {
+                snowParticles.material.opacity = 0.6 + Math.sin(time * 0.3) * 0.2;
+            }
+        }
+        
+        /**
+         * 创建树粒子系统（批处理版本）
+         */
+        function createTreeParticlesBatched() {
+            const batches = [];
+            const { PARTICLE_COUNT, BATCH_SIZE } = CONFIG.TREE;
+            
+            // 将粒子分组为批次，每个批次是一组"星形粒子"
+            const BATCH_PARTICLE_COUNT = CONFIG.TREE.BATCH_SIZE; // 每个星形粒子包含的原始粒子数
+            const batchCount = Math.floor(PARTICLE_COUNT / BATCH_PARTICLE_COUNT);
+            
+            // 存储所有粒子的目标位置、颜色和大小
+            const particleData = [];
+            
+            // 先生成所有粒子的目标位置、颜色和大小
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
+                const i3 = i * 3;
+                
+                // 随机选择粒子类型（树干或树叶）
+                const isTrunk = Math.random() < CONFIG.TREE.TRUNK_RATIO;
+                
+                const data = {
+                    index: i,
+                    isTrunk: isTrunk,
+                    targetPosition: new THREE.Vector3(),
+                    color: new THREE.Color(),
+                    size: 0
+                };
+                
+                // 生成粒子在树中的位置和属性
+                if (isTrunk) {
+                    generateTrunkParticleData(data);
+                } else {
+                    generateLeafParticleData(data);
+                }
+                
+                particleData.push(data);
+            }
+            
+            // 创建批次
+            for (let batchIndex = 0; batchIndex < batchCount; batchIndex++) {
+                // 为当前批次创建单个几何体，包含所有粒子
+                const clusterPositions = new Float32Array(BATCH_PARTICLE_COUNT * 3);
+                const targetPositions = new Float32Array(BATCH_PARTICLE_COUNT * 3);
+                const colors = new Float32Array(BATCH_PARTICLE_COUNT * 3);
+                const sizes = new Float32Array(BATCH_PARTICLE_COUNT);
+                const baseSizes = new Float32Array(BATCH_PARTICLE_COUNT);
+                
+                for (let i = 0; i < BATCH_PARTICLE_COUNT; i++) {
+                    const particleIndex = batchIndex * BATCH_PARTICLE_COUNT + i;
+                    if (particleIndex >= PARTICLE_COUNT) break;
+                    
+                    const data = particleData[particleIndex];
+                    const i3 = i * 3;
+                    
+                    // 将粒子随机分布在空间中，形成星形效果
+                    const randomRadius = CONFIG.ANIMATION.PARTICLE_ANIMATION.INITIAL_RADIUS;
+                    clusterPositions[i3] = (Math.random() - 0.5) * randomRadius * 2;
+                    clusterPositions[i3 + 1] = (Math.random() - 0.5) * randomRadius * 1.5 + randomRadius * 0.2;
+                    clusterPositions[i3 + 2] = (Math.random() - 0.5) * randomRadius * 2;
+                    
+                    // 目标位置
+                    targetPositions[i3] = data.targetPosition.x;
+                    targetPositions[i3 + 1] = data.targetPosition.y;
+                    targetPositions[i3 + 2] = data.targetPosition.z;
+                    
+                    // 颜色
+                    colors[i3] = data.color.r;
+                    colors[i3 + 1] = data.color.g;
+                    colors[i3 + 2] = data.color.b;
+                    
+                    // 大小 - 初始设置为星形大小
+                    const starSizeMultiplier = 3.0;
+                    sizes[i] = data.size * starSizeMultiplier;
+                    baseSizes[i] = data.size;
+                }
+                
+                // 创建几何体
+                const geometry = new THREE.BufferGeometry();
+                geometry.setAttribute('position', new THREE.BufferAttribute(clusterPositions, 3));
+                geometry.setAttribute('targetPosition', new THREE.BufferAttribute(targetPositions, 3));
+                geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+                geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+                geometry.setAttribute('baseSize', new THREE.BufferAttribute(baseSizes, 1));
+                // 星星阶段的大小倍率
+                const starSizes = new Float32Array(BATCH_PARTICLE_COUNT).fill(3.0);
+                geometry.setAttribute('starSize', new THREE.BufferAttribute(starSizes, 1));
+                
+                // 创建材质
+                const material = new THREE.PointsMaterial({
+                    size: 0.25,
+                    vertexColors: true,
+                    transparent: true,
+                    opacity: 1,
+                    blending: THREE.AdditiveBlending
+                });
+                
+                const points = new THREE.Points(geometry, material);
+                points.visible = false; // 一开始不可见
+                
+                // 保存批次数据
+                points.userData.originalPositions = clusterPositions;
+                points.userData.targetPositions = targetPositions;
+                points.userData.batchIndex = batchIndex;
+                points.userData.starPhase = 0; // 0: 星形阶段, 1: 过渡阶段, 2: 最终位置
+                
+                // 将星形粒子组添加到批次数组
+                batches.push(points);
+            }
+            
+            return batches;
+        }
+        
+        /**
+         * 生成树干粒子数据
+         */
+        function generateTrunkParticleData(data) {
+            const { TRUNK_HEIGHT, TRUNK_BASE_RADIUS, TRUNK_TOP_RADIUS } = CONFIG.TREE;
+            
+            // 树干高度
+            const height = Math.random() * TRUNK_HEIGHT;
+            
+            // 树干半径随高度变化
+            const radiusRatio = height / TRUNK_HEIGHT;
+            const radius = TRUNK_BASE_RADIUS - (TRUNK_BASE_RADIUS - TRUNK_TOP_RADIUS) * radiusRatio;
+            const angle = Math.random() * Math.PI * 2;
+            
+            // 设置位置
+            data.targetPosition.set(
+                Math.cos(angle) * radius,
+                height,
+                Math.sin(angle) * radius
+            );
+            
+            // 设置颜色
+            const trunkColor = CONFIG.COLORS.TREE[9];
+            data.color.set(trunkColor.r, trunkColor.g, trunkColor.b);
+            
+            // 设置大小
+            data.size = 2 + Math.random() * 3;
+        }
+        
+        /**
+         * 生成树叶粒子数据
+         */
+        function generateLeafParticleData(data) {
+            const { 
+                LEAF_HEIGHT_RANGE, LEAF_BASE_HEIGHT, LEAF_BASE_RADIUS, 
+                RIBBON_PROBABILITY, RIBBON_COUNT, RIBBON_SPIRAL_TURNS 
+            } = CONFIG.TREE;
+            
+            // 随机高度
+            const randomHeight = Math.random() * LEAF_HEIGHT_RANGE + LEAF_BASE_HEIGHT;
+            
+            // 圆锥形状计算
+            const heightRatio = (randomHeight - LEAF_BASE_HEIGHT) / LEAF_HEIGHT_RANGE;
+            const maxRadius = LEAF_BASE_RADIUS * (1 - heightRatio);
+            
+            // 是否生成彩带粒子
+            const isRibbon = Math.random() < RIBBON_PROBABILITY;
+            
+            let radius, angle;
+            let ribbonColorIndex = -1;
+            
+            if (isRibbon) {
+                // 彩带粒子：螺旋分布
+                const ribbonIndex = Math.floor(Math.random() * RIBBON_COUNT);
+                const ribbonColors = CONFIG.COLORS.RIBBON;
+                ribbonColorIndex = ribbonColors[Math.floor(Math.random() * ribbonColors.length)];
+                
+                const spiralOffset = (ribbonIndex / RIBBON_COUNT) * 2 * Math.PI;
+                const spiralAngle = spiralOffset + (randomHeight - LEAF_BASE_HEIGHT) * 
+                    (2 * Math.PI * RIBBON_SPIRAL_TURNS / LEAF_HEIGHT_RANGE);
+                
+                // 彩带粒子只在树的最外层生成
+                radius = maxRadius * (0.92 + Math.random() * 0.08);
+                angle = spiralAngle + (Math.random() - 0.5) * 0.1;
+            } else {
+                // 普通树叶粒子：随机分布
+                radius = Math.sqrt(Math.random()) * maxRadius;
+                angle = Math.random() * Math.PI * 2;
+                
+                // 按高度调整密度
+                const densityFactor = 1.2 - Math.abs(heightRatio - 0.5) * 0.4;
+                
+                // 这里不再生成远离树的不可见粒子，而是直接跳过创建，这样更高效
+                if (Math.random() <= 0.2 * densityFactor) {
+                    // 跳过创建该粒子，减少不必要的渲染
+                    data.targetPosition.set(0, 0, 0);
+                    data.color.setRGB(0, 0, 0); // 设置为黑色
+                    data.size = 0; // 设置为不可见大小
+                    return;
+                }
+            }
+            
+            // 设置位置
+            data.targetPosition.set(
+                Math.cos(angle) * radius,
+                randomHeight,
+                Math.sin(angle) * radius
+            );
+            
+            // 设置颜色
+            const colorIndex = determineLeafColorIndex(isRibbon, ribbonColorIndex, heightRatio);
+            const color = CONFIG.COLORS.TREE[colorIndex];
+            
+            // 应用阴影效果（仅普通树叶）
+            if (!isRibbon) {
+                const shadowFactor = 0.8 + heightRatio * 0.2;
+                data.color.setRGB(color.r * shadowFactor, color.g * shadowFactor, color.b * shadowFactor);
+            } else {
+                data.color.setRGB(color.r, color.g, color.b);
+            }
+            
+            // 设置大小
+            const sizeFactor = heightRatio > 0.8 ? 0.8 : 1.0;
+            const ribbonSizeFactor = isRibbon ? 1.8 : 1.0;
+            data.size = (1.5 + Math.random() * 3) * sizeFactor * ribbonSizeFactor * (0.9 + Math.random() * 0.2);
+        }
+        
+        /**
+         * 创建圣诞树
+         */
+        function createChristmasTree(scene) {
+            
+            // 创建粒子系统（批处理版本）
+            const particleBatches = createTreeParticlesBatched();
+            
+            // 创建树的根容器
+            const treeGroup = new THREE.Group();
+            
+            // 添加所有批次到树组（每个批次是一个Points对象）
+            particleBatches.forEach(batch => {
+                treeGroup.add(batch);
+            });
+            scene.add(treeGroup);
+            
+            // 添加彩色装饰灯
+            const coloredLightObjects = addColoredLights(treeGroup);
+            
+            // 设置树的位置和缩放
+            treeGroup.position.copy(CONFIG.TREE.POSITION_OFFSET);
+            treeGroup.scale.copy(CONFIG.TREE.SCALE);
+            treeGroup.updateMatrixWorld(true);
+            
+            // 初始化动画状态
+            const animationState = {
+                startTime: Date.now(),
+                completed: false,
+                isRotating: false, // 添加旋转状态标记
+                snowStarted: false, // 标记雪花是否开始
+                snowStartTime: 0, // 雪花开始的时间戳
+                treeCompleted: false // 树是否完全成型
+            };
+            
+            return { 
+                treeGroup, 
+                particleBatches, 
+                coloredLightObjects,
+                animationState
+            };
+        }
+        
+
+        
+
+        
+        /**
+         * 确定树叶颜色索引
+         */
+        function determineLeafColorIndex(isRibbon, ribbonColorIndex, heightRatio) {
+            if (isRibbon && ribbonColorIndex !== -1) {
+                return ribbonColorIndex;
+            }
+            
+            // 普通树叶粒子颜色
+            const rand = Math.random();
+            if (rand < 0.97) {
+                return Math.floor(Math.random() * 4); // 选择前4种深绿/冷绿颜色
+            } else {
+                return 7 + Math.floor(Math.random() * 2); // 选择高光颜色
+            }
+        }
+        
+        /**
+         * 添加彩色装饰灯
+         */
+        function addColoredLights(treeGroup) {
+            const coloredLightObjects = [];
+            
+            CONFIG.LIGHTS.forEach((lightConfig, index) => {
+                const coloredLight = new THREE.PointLight(
+                    lightConfig.color, 
+                    lightConfig.intensity, 
+                    lightConfig.distance
+                );
+                
+                // 随机位置
+                const angle = (index / CONFIG.LIGHTS.length) * Math.PI * 2;
+                const radius = 3 + Math.random() * 2;
+                coloredLight.position.set(
+                    Math.cos(angle) * radius,
+                    5 + Math.random() * 5,
+                    Math.sin(angle) * radius
+                );
+                
+                treeGroup.add(coloredLight);
+                coloredLightObjects.push(coloredLight);
+            });
+            
+            return coloredLightObjects;
+        }
+        
+        /**
+         * 初始化相机控制参数
+         */
+        function initCameraControls(camera) {
+            const cameraDistance = camera.position.distanceTo(CONFIG.CAMERA.TARGET);
+            
+            return {
+                rotationX: THREE.MathUtils.degToRad(0),
+                rotationY: THREE.MathUtils.degToRad(0),
+                distance: cameraDistance
+            };
+        }
+        
+        /**
+         * 更新批次可见性
+         */
+        function updateBatchVisibility(batches, startTime) {
+            const elapsed = Date.now() - startTime;
+            const interval = CONFIG.TREE.BATCH_INTERVAL;
+            const visibleCount = Math.floor(elapsed / interval);
+            
+            for (let i = 0; i < batches.length; i++) {
+                if (i <= visibleCount && !batches[i].userData.startTime) {
+                    batches[i].visible = true;
+                    batches[i].userData.startTime = Date.now();
+                }
+            }
+        }
+        
+        /**
+         * 检查树是否完全成型
+         */
+        function checkTreeCompletion(batches, animationState) {
+            // 检查所有批次是否都到达最终位置（starPhase = 2）
+            const allBatchesCompleted = batches.every(batch => 
+                batch.visible && batch.userData.starPhase >= 2
+            );
+            
+            if (allBatchesCompleted && !animationState.treeCompleted) {
+                animationState.treeCompleted = true;
+                return true; // 树刚完成
+            }
+            
+            return false; // 树未完成或已经完成
+        }
+
+        /**
+         * 更新批次移动动画
+         */
+        function updateBatchMovement(batches, startTime) {
+            const now = Date.now();
+            const appearInterval = CONFIG.TREE.BATCH_INTERVAL;
+            const starPhaseDuration = CONFIG.ANIMATION.PARTICLE_ANIMATION.STAR_PHASE_DURATION;
+            const transitionDuration = CONFIG.ANIMATION.PARTICLE_ANIMATION.TRANSITION_DURATION;
+            
+            // 计算关键时间点
+            const allParticlesVisibleTime = startTime + CONFIG.TREE.BATCH_INTERVAL * Math.ceil(CONFIG.TREE.PARTICLE_COUNT / CONFIG.TREE.BATCH_SIZE) + CONFIG.ANIMATION.PARTICLE_ANIMATION.ALL_PARTICLES_VISIBLE_DELAY;
+            const starPhaseEndTime = allParticlesVisibleTime + starPhaseDuration;
+            const transitionEndTime = starPhaseEndTime + transitionDuration;
+            
+            batches.forEach((points, batchIndex) => {
+                const time = Date.now() * 0.001;
+                const batchAppearTime = startTime + batchIndex * appearInterval;
+                const elapsedSinceAppear = now - batchAppearTime;
+                
+                if (elapsedSinceAppear <= 0) {
+                    // 批次还未出现，保持透明
+                    points.material.opacity = 0;
+                    return;
+                }
+                
+                // 根据当前时间确定动画阶段
+                let sparkle, convergeBrightness;
+                
+                if (now < allParticlesVisibleTime) {
+                    // 阶段0：粒子出现阶段，逐渐显示
+                    const appearProgress = THREE.MathUtils.clamp(elapsedSinceAppear / 500, 0, 1);
+                    sparkle = 0.7 + Math.sin(time * 6 + batchIndex) * 0.3;
+                    convergeBrightness = appearProgress;
+                } else if (now < starPhaseEndTime) {
+                    // 阶段1：星形闪耀阶段
+                    sparkle = 0.7 + Math.sin(time * 6 + batchIndex) * 0.3;
+                    convergeBrightness = 1.0;
+                } else if (now < transitionEndTime) {
+                    // 阶段2：过渡汇聚阶段
+                    const transitionProgress = THREE.MathUtils.clamp((now - starPhaseEndTime) / transitionDuration, 0, 1);
+                    sparkle = 0.7 + Math.sin(time * 6 + batchIndex) * 0.3;
+                    convergeBrightness = 1.0;
+                } else {
+                    // 阶段3：最终形成树
+                    sparkle = 0.9 + Math.sin(time * 3 + batchIndex) * 0.1;
+                    convergeBrightness = 1.0;
+                }
+                
+                // 最终透明度
+                points.material.opacity = sparkle * convergeBrightness;
+                
+                const geometry = points.geometry;
+                const positions = geometry.attributes.position.array;
+                const targetPositions = geometry.attributes.targetPosition.array;
+                
+                // 阶段0和1：粒子出现和星形闪耀阶段
+                if (now < starPhaseEndTime) {
+                    // 静态显示，无漂移效果
+                    for (let i = 0; i < positions.length; i += 3) {
+                        // 直接使用原始位置，保持静态
+                        positions[i] = points.userData.originalPositions[i];
+                        positions[i + 1] = points.userData.originalPositions[i + 1];
+                        positions[i + 2] = points.userData.originalPositions[i + 2];
+                    }
+                    
+                    geometry.attributes.position.needsUpdate = true;
+                    
+                    // ⭐ 星形阶段（闪耀）- 控制size
+                    const sizes = geometry.attributes.size.array;
+                    const baseSizes = geometry.attributes.baseSize.array;
+                    const starSizes = geometry.attributes.starSize.array;
+                    
+                    const sparkle = 1 + Math.sin(time * 6 + batchIndex) * 0.3;
+                    
+                    for (let i = 0; i < sizes.length; i++) {
+                        sizes[i] = baseSizes[i] * starSizes[i] * sparkle;
+                    }
+                    
+                    geometry.attributes.size.needsUpdate = true;
+                } 
+                // 阶段2：过渡汇聚阶段
+                else if (now < transitionEndTime) {
+                    const elapsedSinceTransition = now - starPhaseEndTime;
+                    const t = elapsedSinceTransition / transitionDuration;
+                    // 使用更慢的缓动函数，使过渡更平缓
+                    const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+                    
+                    // 通过BufferAttribute数组进行位置插值
+                    for (let i = 0; i < positions.length; i += 3) {
+                        const startX = points.userData.originalPositions[i];
+                        const startY = points.userData.originalPositions[i + 1];
+                        const startZ = points.userData.originalPositions[i + 2];
+                        
+                        const targetX = targetPositions[i];
+                        const targetY = targetPositions[i + 1];
+                        const targetZ = targetPositions[i + 2];
+                        
+                        // 直线轨迹汇聚
+                        positions[i] = startX + (targetX - startX) * eased;
+                        positions[i + 1] = startY + (targetY - startY) * eased;
+                        positions[i + 2] = startZ + (targetZ - startZ) * eased;
+                    }
+                    
+                    geometry.attributes.position.needsUpdate = true;
+                    
+                    // ⭐ 过渡阶段（大 → 小，连续缩放）- 控制size
+                    const sizes = geometry.attributes.size.array;
+                    const baseSizes = geometry.attributes.baseSize.array;
+                    const starSizes = geometry.attributes.starSize.array;
+                    
+                    const scale = THREE.MathUtils.lerp(
+                        starSizes[0], // 星星阶段倍率
+                        1.0,          // 最终倍率
+                        eased
+                    );
+                    
+                    for (let i = 0; i < sizes.length; i++) {
+                        sizes[i] = baseSizes[i] * scale;
+                    }
+                    
+                    geometry.attributes.size.needsUpdate = true;
+                    
+                    points.userData.starPhase = eased; // 记录过渡进度
+                } 
+                // 阶段3：完全形成树形态
+                else {
+                    // 通过BufferAttribute数组确保所有粒子位于最终位置
+                    for (let i = 0; i < positions.length; i += 3) {
+                        positions[i] = targetPositions[i];
+                        positions[i + 1] = targetPositions[i + 1];
+                        positions[i + 2] = targetPositions[i + 2];
+                    }
+                    
+                    geometry.attributes.position.needsUpdate = true;
+                    
+                    // ⭐ 最终阶段（稳定小粒子）- 控制size
+                    const sizes = geometry.attributes.size.array;
+                    const baseSizes = geometry.attributes.baseSize.array;
+                    
+                    for (let i = 0; i < sizes.length; i++) {
+                        sizes[i] = baseSizes[i];
+                    }
+                    
+                    geometry.attributes.size.needsUpdate = true;
+                    
+                    points.userData.starPhase = 2;
+                }
+            });
+        }
+        
+        /**
+         * 动画循环
+         */
+        function animate(params) {
+            const { 
+                scene, 
+                camera, 
+                renderer, 
+                snowSystem, 
+                treeGroup, 
+                particleBatches, 
+                coloredLightObjects, 
+                cameraControls,
+                animationState
+            } = params;
+            
+            // 获取当前时间
+            const time = Date.now() * 0.001;
+            
+            // 更新批次可见性
+            updateBatchVisibility(particleBatches, animationState.startTime);
+            updateBatchMovement(particleBatches, animationState.startTime);
+            
+            // 应用树的倾斜（始终应用）
+            treeGroup.rotation.x = CONFIG.TREE.TILT_X;
+            
+            // 圣诞树旋转逻辑
+            const now = Date.now();
+            // 计算关键时间点
+            const allParticlesVisibleTime = animationState.startTime + CONFIG.TREE.BATCH_INTERVAL * Math.ceil(CONFIG.TREE.PARTICLE_COUNT / CONFIG.TREE.BATCH_SIZE) + CONFIG.ANIMATION.PARTICLE_ANIMATION.ALL_PARTICLES_VISIBLE_DELAY;
+            const starPhaseEndTime = allParticlesVisibleTime + CONFIG.ANIMATION.PARTICLE_ANIMATION.STAR_PHASE_DURATION;
+            const transitionDuration = CONFIG.ANIMATION.PARTICLE_ANIMATION.TRANSITION_DURATION;
+            const transitionEndTime = starPhaseEndTime + transitionDuration;
+            
+            // 使用监听器检测树是否完全成型
+            const treeJustCompleted = checkTreeCompletion(particleBatches, animationState);
+            
+            // 树成型检查和雪花启动（使用监听器）
+            if (!animationState.snowStarted && treeJustCompleted) {
+                snowSystem.snowParticles.visible = true;
+                snowSystem.snowParticles.material.opacity = 0;
+                animationState.snowStarted = true;
+                animationState.snowStartTime = now;
+            }
+            
+            // 只有在过渡汇聚阶段才开始加速旋转
+            if (now >= starPhaseEndTime && now < transitionEndTime) {
+                treeGroup.rotation.y += CONFIG.TREE.ROTATION_SPEED * 2; // 移动阶段加速旋转
+                if (!animationState.isRotating) {
+                    animationState.isRotating = true;
+                }
+            } else if (now >= transitionEndTime) {
+                treeGroup.rotation.y += CONFIG.TREE.ROTATION_SPEED; // 完成后正常旋转
+            }
+            
+            // 更新相机位置
+            updateCameraPosition(camera, cameraControls);
+            
+            // 只有在雪花开始后才更新雪花动画
+            if (animationState.snowStarted) {
+                // 添加淡入效果
+                let fadeInComplete = false;
+                if (animationState.snowStartTime > 0) {
+                    const snowFadeInDuration = 500; // 0.5秒淡入时间
+                    const elapsedSinceSnowStart = now - animationState.snowStartTime;
+                    const fadeInProgress = THREE.MathUtils.clamp(elapsedSinceSnowStart / snowFadeInDuration, 0, 1);
+                    snowSystem.snowParticles.material.opacity = fadeInProgress * 0.8;
+                    fadeInComplete = fadeInProgress >= 1.0;
+                }
+                
+                snowSystem.updateSnowAnimation(time, fadeInComplete, animationState.snowStartTime);
+            }
+            
+            // 禁用此函数，避免破坏size的稳定性
+            // updateParticlesAnimation(particleBatches, time, animationState);
+            
+            // 更新彩色装饰灯
+            updateColoredLights(coloredLightObjects, time);
+            
+            // 渲染场景
+            renderer.render(scene, camera);
+            
+            // 请求下一帧动画
+            requestAnimationFrame(() => animate(params));
+        }
+        
+        /**
+         * 更新相机位置
+         */
+        function updateCameraPosition(camera, cameraControls) {
+            const spherical = new THREE.Spherical();
+            spherical.radius = cameraControls.distance;
+            spherical.theta = cameraControls.rotationY;
+            spherical.phi = cameraControls.rotationX + Math.PI / 2;
+            
+            camera.position.setFromSpherical(spherical);
+            camera.position.add(CONFIG.CAMERA.TARGET);
+            camera.lookAt(CONFIG.CAMERA.TARGET);
+        }
+        
+
+        
+        /**
+         * 更新粒子动画
+         */
+        function updateParticlesAnimation(particleBatches, time, animationState) {
+            // 检查所有粒子是否已完成星形到树形态的过渡
+            const allParticlesTransitioned = particleBatches.every(points => 
+                points.userData.starPhase >= 2
+            );
+            
+            if (!allParticlesTransitioned) return;
+            
+            // 在所有粒子完成过渡后，添加微妙的动态效果
+            particleBatches.forEach(points => {
+                const geometry = points.geometry;
+                const colors = geometry.attributes.color.array;
+                const sizes = geometry.attributes.size.array;
+                
+                // ❌ 不再使用 material.size
+            });
+        }
+        
+        /**
+         * 更新彩色装饰灯
+         */
+        function updateColoredLights(coloredLightObjects, time) {
+            coloredLightObjects.forEach((light, index) => {
+                const lightConfig = CONFIG.LIGHTS[index];
+                const baseIntensity = lightConfig.intensity;
+                const flickerSpeed = lightConfig.flickerSpeed;
+                
+                // 计算闪烁强度
+                const flicker = 0.5 + Math.sin(time * flickerSpeed * Math.PI * 2) * 0.5;
+                light.intensity = baseIntensity * flicker;
+            });
+        }
+        
+        /**
+         * 窗口大小调整事件处理
+         */
+        function onWindowResize(camera, renderer) {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+    </script>
+</body>
+</html>

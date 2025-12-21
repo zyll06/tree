@@ -118,12 +118,12 @@
             // 初始化渲染器
             const renderer = createRenderer(); // 调用渲染器创建函数
             
-            // 加载背景图片
-            loadBackgroundTexture(scene, renderer, camera); // 调用背景纹理加载函数，传入必要参数
-            
             // 创建雪花粒子系统（初始隐藏）
             const snowSystem = createSnowParticles(scene); // 调用雪花系统创建函数
             snowSystem.snowParticles.visible = false; // 初始隐藏雪粒子
+            
+            // 加载背景图片 - 放在最后确保其他组件已就绪
+            loadBackgroundTexture(scene, renderer, camera); // 调用背景纹理加载函数，传入必要参数
             
             // 创建圣诞树
             const { // 解构赋值，获取创建圣诞树返回的多个对象
@@ -188,31 +188,64 @@
         function loadBackgroundTexture(scene, renderer, camera) { // 背景纹理加载函数开始
             const textureLoader = new THREE.TextureLoader(); // 创建纹理加载器
 
-            // ⭐ 关键：必须使用 ./ + 版本号，这是跨设备兼容的保证
-            const imagePath = './christmas_tree.jpg?v=1';
+            // ⭐⭐ 关键修复：多重路径尝试 + 跨域处理
+            const imagePaths = [
+                './christmas_tree.jpg',           // 标准相对路径
+                'christmas_tree.jpg',             // 当前目录路径  
+                './christmas_tree.jpg?v=' + Date.now(), // 防缓存版本
+                window.location.origin + '/christmas_tree.jpg' // 绝对路径
+            ];
             
-            console.log('加载背景图片:', imagePath);
+            let pathIndex = 0;
             
-            textureLoader.load( // 开始加载纹理
-                imagePath, // 图片路径
-                texture => { // 加载成功回调
-                    console.log('背景图片加载成功');
-                    texture.colorSpace = THREE.SRGBColorSpace; // 设置颜色空间
-                    texture.minFilter = THREE.LinearFilter; // 设置缩小过滤器
-                    texture.magFilter = THREE.LinearFilter; // 设置放大过滤器
-                    scene.background = texture; // 设置场景背景
-
-                    // ⭐⭐ 核心：强制渲染一次（其他设备显示的关键）
-                    renderer.render(scene, camera); // 立即渲染一帧，确保背景显示
-                },
-                undefined, // 进度回调（可选）
-                err => { // 加载失败回调
-                    console.error('背景图片加载失败:', err);
-                    // 使用黑色背景作为后备
+            function tryLoadImage() {
+                if (pathIndex >= imagePaths.length) {
+                    console.error('所有图片路径都加载失败，使用黑色背景');
                     scene.background = new THREE.Color(0x000000);
                     renderer.render(scene, camera);
+                    return;
                 }
-            ); // 纹理加载结束
+                
+                const currentPath = imagePaths[pathIndex];
+                console.log(`尝试加载图片路径 ${pathIndex + 1}: ${currentPath}`);
+                
+                textureLoader.load( // 开始加载纹理
+                    currentPath, // 当前尝试的路径
+                    texture => { // 加载成功回调
+                        console.log(`✅ 背景图片加载成功: ${currentPath}`);
+                        
+                        // ⭐ 关键设置：确保跨设备兼容
+                        texture.colorSpace = THREE.SRGBColorSpace; // 设置颜色空间
+                        texture.minFilter = THREE.LinearFilter; // 设置缩小过滤器
+                        texture.magFilter = THREE.LinearFilter; // 设置放大过滤器
+                        texture.wrapS = THREE.ClampToEdgeWrapping; // 防止边缘问题
+                        texture.wrapT = THREE.ClampToEdgeWrapping;
+                        texture.generateMipmaps = false; // 避免mipmap问题
+                        
+                        scene.background = texture; // 设置场景背景
+
+                        // ⭐⭐⭐ 核心：强制多次渲染确保其他设备显示
+                        setTimeout(() => {
+                            renderer.render(scene, camera);
+                            console.log('背景图片已应用并强制渲染');
+                        }, 100);
+                        
+                        // 再次渲染确保显示
+                        setTimeout(() => {
+                            renderer.render(scene, camera);
+                        }, 500);
+                    },
+                    undefined, // 进度回调（可选）
+                    err => { // 加载失败回调
+                        console.error(`❌ 路径加载失败: ${currentPath}`, err);
+                        pathIndex++;
+                        tryLoadImage(); // 尝试下一个路径
+                    }
+                ); // 纹理加载结束
+            }
+            
+            // 开始尝试加载
+            tryLoadImage();
         } // loadBackgroundTexture函数结束
         
         /**

@@ -101,6 +101,11 @@
             } // ANIMATION配置结束
         }; // CONFIG对象结束
 
+        // 全局变量控制粒子系统状态
+        let particlesStarted = false;
+        let animationParams = null;
+        let scene, camera, renderer;
+
         // 页面加载完成后初始化Three.js
         window.addEventListener('DOMContentLoaded', initThreeJs); // DOM加载完成事件监听器
         
@@ -109,17 +114,42 @@
          */
         function initThreeJs() { // Three.js初始化函数开始
             // 创建Three.js场景对象
-            const scene = new THREE.Scene(); // 创建3D场景容器
+            scene = new THREE.Scene(); // 创建3D场景容器
             
             // 优先使用渐变背景，避免图片加载问题
             useFallbackBackground(scene);
             
             // 初始化相机
-            const camera = createCamera(); // 调用相机创建函数
+            camera = createCamera(); // 调用相机创建函数
             
             // 初始化渲染器
-            const renderer = createRenderer(); // 调用渲染器创建函数
+            renderer = createRenderer(); // 调用渲染器创建函数
             
+            // 添加窗口大小调整事件监听
+            window.addEventListener('resize', () => onWindowResize(camera, renderer)); // 监听窗口大小变化
+            
+            // 尝试加载背景图片，加载完成后再开始动画
+            tryLoadBackgroundImage(scene, renderer, camera, () => {
+                // 背景加载完成，渲染第一帧
+                renderer.render(scene, camera);
+                console.log('🎬 背景准备就绪，开始简单动画循环');
+                
+                // 开始简单的动画循环（只渲染背景）
+                animate();
+                
+                // ⭐ 延迟 500ms 再初始化粒子系统
+                setTimeout(() => {
+                    console.log('🌟 开始初始化粒子系统...');
+                    initParticles();
+                    particlesStarted = true;
+                }, 500);
+            });
+        } // initThreeJs函数结束
+        
+        /**
+         * 初始化粒子系统（延迟执行）
+         */
+        function initParticles() {
             // 创建雪花粒子系统（初始隐藏）
             const snowSystem = createSnowParticles(scene); // 调用雪花系统创建函数
             snowSystem.snowParticles.visible = false; // 初始隐藏雪粒子
@@ -135,26 +165,21 @@
             // 初始化相机控制参数
             const cameraControls = initCameraControls(camera); // 调用相机控制初始化函数
             
-            // 添加窗口大小调整事件监听
-            window.addEventListener('resize', () => onWindowResize(camera, renderer)); // 监听窗口大小变化
+            // 保存动画参数到全局变量
+            animationParams = {
+                scene, // 3D场景
+                camera, // 相机
+                renderer, // 渲染器
+                snowSystem, // 雪花系统
+                treeGroup, // 树组
+                particleBatches, // 粒子批次
+                coloredLightObjects, // 彩色灯光
+                cameraControls, // 相机控制
+                animationState // 动画状态
+            };
             
-            // 尝试加载背景图片，加载完成后再开始动画
-            tryLoadBackgroundImage(scene, renderer, camera, () => {
-                console.log('🎬 背景准备就绪，开始动画');
-                // 开始动画循环
-                animate({ // 调用动画循环函数，传入所有必要参数
-                    scene, // 3D场景
-                    camera, // 相机
-                    renderer, // 渲染器
-                    snowSystem, // 雪花系统
-                    treeGroup, // 树组
-                    particleBatches, // 粒子批次
-                    coloredLightObjects, // 彩色灯光
-                    cameraControls, // 相机控制
-                    animationState // 动画状态
-                }); // animate调用结束
-            });
-        } // initThreeJs函数结束
+            console.log('✅ 粒子系统初始化完成');
+        }
         
         /**
          * 创建透视相机
@@ -930,87 +955,89 @@
         /**
          * 动画循环
          */
-        function animate(params) { // 动画主循环函数
-            const { // 解构获取动画参数对象中的所有必要组件
-                scene, // 3D场景
-                camera, // 相机
-                renderer, // 渲染器
-                snowSystem, // 雪花系统
-                treeGroup, // 树组
-                particleBatches, // 粒子批次
-                coloredLightObjects, // 彩色灯光
-                cameraControls, // 相机控制
-                animationState // 动画状态
-            } = params; // 解构赋值结束
+        function animate() { // 动画主循环函数
             
-            // 获取当前时间
-            const time = Date.now() * 0.001; // 获取当前时间（转换为秒）
+            requestAnimationFrame(animate);
             
-            // 更新批次可见性
-            updateBatchVisibility(particleBatches, animationState.startTime); // 更新粒子批次显示状态
-            updateBatchMovement(particleBatches, animationState.startTime); // 更新粒子移动动画
-            
-            // 应用树的倾斜（始终应用）
-            treeGroup.rotation.x = CONFIG.TREE.TILT_X;
-            
-            // 圣诞树旋转逻辑
-            const now = Date.now();
-            // 计算关键时间点
-            const allParticlesVisibleTime = animationState.startTime + CONFIG.TREE.BATCH_INTERVAL * Math.ceil(CONFIG.TREE.PARTICLE_COUNT / CONFIG.TREE.BATCH_SIZE) + CONFIG.ANIMATION.PARTICLE_ANIMATION.ALL_PARTICLES_VISIBLE_DELAY;
-            const starPhaseEndTime = allParticlesVisibleTime + CONFIG.ANIMATION.PARTICLE_ANIMATION.STAR_PHASE_DURATION;
-            const transitionDuration = CONFIG.ANIMATION.PARTICLE_ANIMATION.TRANSITION_DURATION;
-            const transitionEndTime = starPhaseEndTime + transitionDuration;
-            
-            // 使用监听器检测树是否完全成型
-            const treeJustCompleted = checkTreeCompletion(particleBatches, animationState);
-            
-            // 树成型检查和雪花启动（使用监听器）
-            if (!animationState.snowStarted && treeJustCompleted) {
-                snowSystem.snowParticles.visible = true;
-                snowSystem.snowParticles.material.opacity = 0;
-                animationState.snowStarted = true;
-                animationState.snowStartTime = now;
-            }
-            
-            // 只有在过渡汇聚阶段才开始加速旋转
-            if (now >= starPhaseEndTime && now < transitionEndTime) {
-                treeGroup.rotation.y += CONFIG.TREE.ROTATION_SPEED * 2; // 移动阶段加速旋转
-                if (!animationState.isRotating) {
-                    animationState.isRotating = true;
-                }
-            } else if (now >= transitionEndTime) {
-                treeGroup.rotation.y += CONFIG.TREE.ROTATION_SPEED; // 完成后正常旋转
-            }
-            
-            // 更新相机位置
-            updateCameraPosition(camera, cameraControls);
-            
-            // 只有在雪花开始后才更新雪花动画
-            if (animationState.snowStarted) {
-                // 添加淡入效果
-                let fadeInComplete = false;
-                if (animationState.snowStartTime > 0) {
-                    const snowFadeInDuration = 500; // 0.5秒淡入时间
-                    const elapsedSinceSnowStart = now - animationState.snowStartTime;
-                    const fadeInProgress = THREE.MathUtils.clamp(elapsedSinceSnowStart / snowFadeInDuration, 0, 1);
-                    snowSystem.snowParticles.material.opacity = fadeInProgress * 0.8;
-                    fadeInComplete = fadeInProgress >= 1.0;
+            if (particlesStarted && animationParams) {
+                const { // 解构获取动画参数对象中的所有必要组件
+                    scene, // 3D场景
+                    camera, // 相机
+                    renderer, // 渲染器
+                    snowSystem, // 雪花系统
+                    treeGroup, // 树组
+                    particleBatches, // 粒子批次
+                    coloredLightObjects, // 彩色灯光
+                    cameraControls, // 相机控制
+                    animationState // 动画状态
+                } = animationParams; // 解构赋值结束
+                
+                // 获取当前时间
+                const time = Date.now() * 0.001; // 获取当前时间（转换为秒）
+                
+                // 更新批次可见性
+                updateBatchVisibility(particleBatches, animationState.startTime); // 更新粒子批次显示状态
+                updateBatchMovement(particleBatches, animationState.startTime); // 更新粒子移动动画
+                
+                // 应用树的倾斜（始终应用）
+                treeGroup.rotation.x = CONFIG.TREE.TILT_X;
+                
+                // 圣诞树旋转逻辑
+                const now = Date.now();
+                // 计算关键时间点
+                const allParticlesVisibleTime = animationState.startTime + CONFIG.TREE.BATCH_INTERVAL * Math.ceil(CONFIG.TREE.PARTICLE_COUNT / CONFIG.TREE.BATCH_SIZE) + CONFIG.ANIMATION.PARTICLE_ANIMATION.ALL_PARTICLES_VISIBLE_DELAY;
+                const starPhaseEndTime = allParticlesVisibleTime + CONFIG.ANIMATION.PARTICLE_ANIMATION.STAR_PHASE_DURATION;
+                const transitionDuration = CONFIG.ANIMATION.PARTICLE_ANIMATION.TRANSITION_DURATION;
+                const transitionEndTime = starPhaseEndTime + transitionDuration;
+                
+                // 使用监听器检测树是否完全成型
+                const treeJustCompleted = checkTreeCompletion(particleBatches, animationState);
+                
+                // 树成型检查和雪花启动（使用监听器）
+                if (!animationState.snowStarted && treeJustCompleted) {
+                    snowSystem.snowParticles.visible = true;
+                    snowSystem.snowParticles.material.opacity = 0;
+                    animationState.snowStarted = true;
+                    animationState.snowStartTime = now;
                 }
                 
-                snowSystem.updateSnowAnimation(time, fadeInComplete, animationState.snowStartTime);
+                // 只有在过渡汇聚阶段才开始加速旋转
+                if (now >= starPhaseEndTime && now < transitionEndTime) {
+                    treeGroup.rotation.y += CONFIG.TREE.ROTATION_SPEED * 2; // 移动阶段加速旋转
+                    if (!animationState.isRotating) {
+                        animationState.isRotating = true;
+                    }
+                } else if (now >= transitionEndTime) {
+                    treeGroup.rotation.y += CONFIG.TREE.ROTATION_SPEED; // 完成后正常旋转
+                }
+                
+                // 更新相机位置
+                updateCameraPosition(camera, cameraControls);
+                
+                // 只有在雪花开始后才更新雪花动画
+                if (animationState.snowStarted) {
+                    // 添加淡入效果
+                    let fadeInComplete = false;
+                    if (animationState.snowStartTime > 0) {
+                        const snowFadeInDuration = 500; // 0.5秒淡入时间
+                        const elapsedSinceSnowStart = now - animationState.snowStartTime;
+                        const fadeInProgress = THREE.MathUtils.clamp(elapsedSinceSnowStart / snowFadeInDuration, 0, 1);
+                        snowSystem.snowParticles.material.opacity = fadeInProgress * 0.8;
+                        fadeInComplete = fadeInProgress >= 1.0;
+                    }
+                    
+                    snowSystem.updateSnowAnimation(time, fadeInComplete, animationState.snowStartTime);
+                }
+                
+                // 禁用此函数，避免破坏size的稳定性
+                // updateParticlesAnimation(particleBatches, time, animationState);
+                
+                // 更新彩色装饰灯
+                updateColoredLights(coloredLightObjects, time);
             }
-            
-            // 禁用此函数，避免破坏size的稳定性
-            // updateParticlesAnimation(particleBatches, time, animationState);
-            
-            // 更新彩色装饰灯
-            updateColoredLights(coloredLightObjects, time);
             
             // 渲染场景
             renderer.render(scene, camera); // 渲染当前帧
-            
-            // 请求下一帧动画
-            requestAnimationFrame(() => animate(params)); // 递归调用下一帧动画
         } // animate函数结束
         
         /**

@@ -186,67 +186,150 @@
          * 加载背景纹理
          */
         function loadBackgroundTexture(scene, renderer, camera) { // 背景纹理加载函数开始
-            const textureLoader = new THREE.TextureLoader(); // 创建纹理加载器
-
-            // ⭐⭐ 关键修复：多重路径尝试 + 跨域处理
+            
+            // ⭐⭐⭐ 关键修复：使用原生Image对象避免Three.js跨域问题
+            console.log('🔍 开始加载背景图片...');
+            
+            // 检测当前访问方式
+            const isFileProtocol = window.location.protocol === 'file:';
+            const isHttpProtocol = window.location.protocol.startsWith('http');
+            
+            console.log('📋 访问协议:', window.location.protocol);
+            console.log('📋 当前页面URL:', window.location.href);
+            
+            // 根据访问方式选择不同的加载策略
+            if (isFileProtocol) {
+                // file:// 协议 - 直接使用相对路径
+                loadImageWithNative('./christmas_tree.jpg', scene, renderer, camera);
+            } else if (isHttpProtocol) {
+                // http/https 协议 - 使用多重路径尝试
+                tryMultiplePaths(scene, renderer, camera);
+            } else {
+                console.error('❌ 不支持的协议:', window.location.protocol);
+                useFallbackBackground(scene, renderer, camera);
+            }
+        } // loadBackgroundTexture函数结束
+        
+        /**
+         * 使用原生Image对象加载图片（避免跨域问题）
+         */
+        function loadImageWithNative(imagePath, scene, renderer, camera) {
+            console.log('🖼️ 使用原生Image对象加载:', imagePath);
+            
+            const img = new Image();
+            
+            // 关键：设置crossOrigin属性
+            img.crossOrigin = 'anonymous';
+            
+            img.onload = function() {
+                console.log('✅ 原生Image加载成功');
+                
+                const texture = new THREE.Texture(img);
+                texture.needsUpdate = true;
+                texture.colorSpace = THREE.SRGBColorSpace;
+                texture.minFilter = THREE.LinearFilter;
+                texture.magFilter = THREE.LinearFilter;
+                texture.wrapS = THREE.ClampToEdgeWrapping;
+                texture.wrapT = THREE.ClampToEdgeWrapping;
+                texture.generateMipmaps = false;
+                
+                scene.background = texture;
+                
+                // 强制渲染
+                setTimeout(() => {
+                    renderer.render(scene, camera);
+                    console.log('背景图片已应用');
+                }, 100);
+            };
+            
+            img.onerror = function(err) {
+                console.error('❌ 原生Image加载失败:', err);
+                useFallbackBackground(scene, renderer, camera);
+            };
+            
+            img.src = imagePath;
+        }
+        
+        /**
+         * 尝试多个路径
+         */
+        function tryMultiplePaths(scene, renderer, camera) {
             const imagePaths = [
-                './christmas_tree.jpg',           // 标准相对路径
-                'christmas_tree.jpg',             // 当前目录路径  
-                './christmas_tree.jpg?v=' + Date.now(), // 防缓存版本
-                window.location.origin + '/christmas_tree.jpg' // 绝对路径
+                './christmas_tree.jpg',           
+                'christmas_tree.jpg',             
+                './christmas_tree.jpg?v=' + Date.now(),
+                window.location.origin + '/christmas_tree.jpg'
             ];
             
             let pathIndex = 0;
             
-            function tryLoadImage() {
+            function tryNextPath() {
                 if (pathIndex >= imagePaths.length) {
-                    console.error('所有图片路径都加载失败，使用黑色背景');
-                    scene.background = new THREE.Color(0x000000);
-                    renderer.render(scene, camera);
+                    console.error('所有HTTP路径都失败，尝试原生Image加载');
+                    loadImageWithNative('./christmas_tree.jpg', scene, renderer, camera);
                     return;
                 }
                 
                 const currentPath = imagePaths[pathIndex];
-                console.log(`尝试加载图片路径 ${pathIndex + 1}: ${currentPath}`);
+                console.log(`🔍 尝试HTTP路径 ${pathIndex + 1}: ${currentPath}`);
                 
-                textureLoader.load( // 开始加载纹理
-                    currentPath, // 当前尝试的路径
-                    texture => { // 加载成功回调
-                        console.log(`✅ 背景图片加载成功: ${currentPath}`);
-                        
-                        // ⭐ 关键设置：确保跨设备兼容
-                        texture.colorSpace = THREE.SRGBColorSpace; // 设置颜色空间
-                        texture.minFilter = THREE.LinearFilter; // 设置缩小过滤器
-                        texture.magFilter = THREE.LinearFilter; // 设置放大过滤器
-                        texture.wrapS = THREE.ClampToEdgeWrapping; // 防止边缘问题
-                        texture.wrapT = THREE.ClampToEdgeWrapping;
-                        texture.generateMipmaps = false; // 避免mipmap问题
-                        
-                        scene.background = texture; // 设置场景背景
-
-                        // ⭐⭐⭐ 核心：强制多次渲染确保其他设备显示
-                        setTimeout(() => {
-                            renderer.render(scene, camera);
-                            console.log('背景图片已应用并强制渲染');
-                        }, 100);
-                        
-                        // 再次渲染确保显示
-                        setTimeout(() => {
-                            renderer.render(scene, camera);
-                        }, 500);
-                    },
-                    undefined, // 进度回调（可选）
-                    err => { // 加载失败回调
-                        console.error(`❌ 路径加载失败: ${currentPath}`, err);
+                // 先测试文件是否存在
+                fetch(currentPath, { method: 'HEAD' })
+                    .then(response => {
+                        if (response.ok) {
+                            console.log(`✅ HTTP HEAD请求成功: ${currentPath}`);
+                            loadImageWithNative(currentPath, scene, renderer, camera);
+                        } else {
+                            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                        }
+                    })
+                    .catch(err => {
+                        console.error(`❌ HTTP路径失败: ${currentPath}`, err);
                         pathIndex++;
-                        tryLoadImage(); // 尝试下一个路径
-                    }
-                ); // 纹理加载结束
+                        tryNextPath();
+                    });
             }
             
-            // 开始尝试加载
-            tryLoadImage();
-        } // loadBackgroundTexture函数结束
+            tryNextPath();
+        }
+        
+        /**
+         * 使用后备背景
+         */
+        function useFallbackBackground(scene, renderer, camera) {
+            console.log('🎨 使用渐变背景作为后备');
+            
+            // 创建渐变背景
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+            
+            // 创建渐变
+            const gradient = ctx.createLinearGradient(0, 0, 0, 512);
+            gradient.addColorStop(0, '#001133');
+            gradient.addColorStop(0.5, '#003366');
+            gradient.addColorStop(1, '#112244');
+            
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 512, 512);
+            
+            // 添加星星效果
+            for (let i = 0; i < 100; i++) {
+                ctx.fillStyle = `rgba(255, 255, 255, ${Math.random()})`;
+                ctx.fillRect(
+                    Math.random() * 512,
+                    Math.random() * 512,
+                    1, 1
+                );
+            }
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            scene.background = texture;
+            renderer.render(scene, camera);
+            
+            console.log('✅ 渐变背景已应用');
+        }
         
         /**
          * 创建雪花粒子系统（渐进式）

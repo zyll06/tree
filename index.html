@@ -188,7 +188,7 @@
         function loadBackgroundTexture(scene) { // 背景纹理加载函数开始
             const textureLoader = new THREE.TextureLoader(); // 创建纹理加载器
             
-            textureLoader.load('christmas_tree.jpg', (texture) => { // 加载图片纹理
+            textureLoader.load('./christmas_tree.jpg?v=3', (texture) => { // 加载图片纹理
                 texture.colorSpace = THREE.SRGBColorSpace; // 设置颜色空间
                 texture.minFilter = THREE.LinearFilter; // 设置缩小过滤器
                 texture.magFilter = THREE.LinearFilter; // 设置放大过滤器

@@ -188,23 +188,52 @@
         function loadBackgroundTexture(scene, renderer, camera) { // 背景纹理加载函数开始
             const textureLoader = new THREE.TextureLoader(); // 创建纹理加载器
 
-            textureLoader.load( // 开始加载纹理
-                './christmas_tree.jpg?v=3', // 路径 + 破缓存版本号
-                texture => { // 加载成功回调
-                    texture.colorSpace = THREE.SRGBColorSpace; // 设置颜色空间
-                    texture.minFilter = THREE.LinearFilter; // 设置缩小过滤器
-                    texture.magFilter = THREE.LinearFilter; // 设置放大过滤器
-                    scene.background = texture; // 设置场景背景
+            // 尝试多个可能的路径
+            const possiblePaths = [
+                './christmas_tree.jpg', // 相对路径
+                'christmas_tree.jpg',   // 当前目录路径
+                './christmas_tree.jpg?t=' + Date.now(), // 时间戳破缓存
+                './christmas_tree.jpg?v=' + Math.random().toString(36).substr(2, 9) // 随机字符串破缓存
+            ];
 
-                    // ⭐ 强制重渲染（关键）
-                    renderer.render(scene, camera); // 立即渲染一帧，确保背景显示
-                },
-                undefined, // 进度回调（可选）
-                err => { // 加载失败回调
-                    console.error('背景加载失败', err); // 输出错误信息
-                    scene.background = new THREE.Color(0x000000); // 设置黑色背景作为备选
+            // 尝试加载每个路径
+            let pathIndex = 0;
+            
+            function tryLoadNextPath() {
+                if (pathIndex >= possiblePaths.length) {
+                    console.error('所有路径都加载失败，使用黑色背景');
+                    scene.background = new THREE.Color(0x000000);
+                    return;
                 }
-            ); // 纹理加载结束
+
+                const currentPath = possiblePaths[pathIndex];
+                console.log(`尝试路径 ${pathIndex + 1}: ${currentPath}`);
+                
+                textureLoader.load( // 开始加载纹理
+                    currentPath, // 当前尝试的路径
+                    texture => { // 加载成功回调
+                        console.log(`路径 ${currentPath} 加载成功`);
+                        texture.colorSpace = THREE.SRGBColorSpace; // 设置颜色空间
+                        texture.minFilter = THREE.LinearFilter; // 设置缩小过滤器
+                        texture.magFilter = THREE.LinearFilter; // 设置放大过滤器
+                        scene.background = texture; // 设置场景背景
+
+                        // ⭐ 强制重渲染（关键）
+                        renderer.render(scene, camera); // 立即渲染一帧，确保背景显示
+                    },
+                    progress => { // 加载进度回调
+                        console.log(`加载进度: ${Math.round((progress.loaded / progress.total) * 100)}%`);
+                    },
+                    err => { // 加载失败回调
+                        console.error(`路径 ${currentPath} 加载失败:`, err);
+                        pathIndex++;
+                        tryLoadNextPath(); // 尝试下一个路径
+                    }
+                ); // 纹理加载结束
+            }
+
+            // 开始尝试第一个路径
+            tryLoadNextPath();
         } // loadBackgroundTexture函数结束
         
         /**

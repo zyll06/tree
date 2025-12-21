@@ -105,8 +105,7 @@
         window.addEventListener('DOMContentLoaded', initThreeJs); // DOM加载完成事件监听器
         
         /**
-         * Three.js主初始化函数
-         * 负责创建和配置3D场景、相机、渲染器等核心组件
+         * Three.js初始化主函数
          */
         function initThreeJs() { // Three.js初始化函数开始
             // 创建Three.js场景对象
@@ -120,9 +119,6 @@
             
             // 初始化渲染器
             const renderer = createRenderer(); // 调用渲染器创建函数
-            
-            // 尝试加载背景图片（异步，不阻塞主程序）
-            tryLoadBackgroundImage(scene, renderer, camera);
             
             // 创建雪花粒子系统（初始隐藏）
             const snowSystem = createSnowParticles(scene); // 调用雪花系统创建函数
@@ -139,21 +135,25 @@
             // 初始化相机控制参数
             const cameraControls = initCameraControls(camera); // 调用相机控制初始化函数
             
-            // 开始动画循环
-            animate({ // 调用动画循环函数，传入所有必要参数
-                scene, // 3D场景
-                camera, // 相机
-                renderer, // 渲染器
-                snowSystem, // 雪花系统
-                treeGroup, // 树组
-                particleBatches, // 粒子批次
-                coloredLightObjects, // 彩色灯光
-                cameraControls, // 相机控制
-                animationState // 动画状态
-            }); // animate调用结束
-            
             // 添加窗口大小调整事件监听
             window.addEventListener('resize', () => onWindowResize(camera, renderer)); // 监听窗口大小变化
+            
+            // 尝试加载背景图片，加载完成后再开始动画
+            tryLoadBackgroundImage(scene, renderer, camera, () => {
+                console.log('🎬 背景准备就绪，开始动画');
+                // 开始动画循环
+                animate({ // 调用动画循环函数，传入所有必要参数
+                    scene, // 3D场景
+                    camera, // 相机
+                    renderer, // 渲染器
+                    snowSystem, // 雪花系统
+                    treeGroup, // 树组
+                    particleBatches, // 粒子批次
+                    coloredLightObjects, // 彩色灯光
+                    cameraControls, // 相机控制
+                    animationState // 动画状态
+                }); // animate调用结束
+            });
         } // initThreeJs函数结束
         
         /**
@@ -188,7 +188,7 @@
         /**
          * 尝试加载背景图片（异步，非阻塞）
          */
-        function tryLoadBackgroundImage(scene, renderer, camera) {
+        function tryLoadBackgroundImage(scene, renderer, camera, onComplete) {
             console.log('🔍 尝试异步加载背景图片...');
             
             const img = new Image();
@@ -211,14 +211,20 @@
                     setTimeout(() => {
                         renderer.render(scene, camera);
                         console.log('背景图片已应用');
+                        // 背景加载完成，调用回调开始动画
+                        onComplete();
                     }, 100);
                 } catch (error) {
                     console.error('❌ 纹理创建失败:', error);
+                    // 即使纹理创建失败，也要继续启动动画
+                    onComplete();
                 }
             };
             
             img.onerror = function() {
                 console.log('⚠️ 背景图片加载失败，继续使用渐变背景');
+                // 图片加载失败，使用渐变背景，调用回调开始动画
+                onComplete();
             };
             
             // 尝试加载图片，但不阻塞主程序

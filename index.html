@@ -119,7 +119,7 @@
             const renderer = createRenderer(); // 调用渲染器创建函数
             
             // 加载背景图片
-            loadBackgroundTexture(scene); // 调用背景纹理加载函数
+            loadBackgroundTexture(scene, renderer, camera); // 调用背景纹理加载函数，传入必要参数
             
             // 创建雪花粒子系统（初始隐藏）
             const snowSystem = createSnowParticles(scene); // 调用雪花系统创建函数
@@ -185,15 +185,26 @@
         /**
          * 加载背景纹理
          */
-        function loadBackgroundTexture(scene) { // 背景纹理加载函数开始
+        function loadBackgroundTexture(scene, renderer, camera) { // 背景纹理加载函数开始
             const textureLoader = new THREE.TextureLoader(); // 创建纹理加载器
-            
-            textureLoader.load('./christmas_tree.jpg?v=3', (texture) => { // 加载图片纹理
-                texture.colorSpace = THREE.SRGBColorSpace; // 设置颜色空间
-                texture.minFilter = THREE.LinearFilter; // 设置缩小过滤器
-                texture.magFilter = THREE.LinearFilter; // 设置放大过滤器
-                scene.background = texture; // 设置场景背景
-            }); // 纹理加载回调结束
+
+            textureLoader.load( // 开始加载纹理
+                './christmas_tree.jpg?v=3', // 路径 + 破缓存版本号
+                texture => { // 加载成功回调
+                    texture.colorSpace = THREE.SRGBColorSpace; // 设置颜色空间
+                    texture.minFilter = THREE.LinearFilter; // 设置缩小过滤器
+                    texture.magFilter = THREE.LinearFilter; // 设置放大过滤器
+                    scene.background = texture; // 设置场景背景
+
+                    // ⭐ 强制重渲染（关键）
+                    renderer.render(scene, camera); // 立即渲染一帧，确保背景显示
+                },
+                undefined, // 进度回调（可选）
+                err => { // 加载失败回调
+                    console.error('背景加载失败', err); // 输出错误信息
+                    scene.background = new THREE.Color(0x000000); // 设置黑色背景作为备选
+                }
+            ); // 纹理加载结束
         } // loadBackgroundTexture函数结束
         
         /**

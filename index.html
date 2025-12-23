@@ -19,13 +19,30 @@
         }
         
         /* 🕒 动画阶段计时器样式 */
-
+        
+        /* 启动界面样式 */
+        #start {
+            position: fixed;
+            inset: 0;
+            background: transparent;
+            color: white;
+            font-size: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            z-index: 9999;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+        }
     </style>
 </head>
 <body>
 
+    <!-- 启动界面 (初始隐藏，背景加载完成后显示) -->
+    <div id="start" style="display: none;">点击进入 🎄</div>
+
     <!-- 音频元素 - 自动循环播放，不显示 -->
-    <audio id="christmasAudio" loop autoplay preload="auto" style="display: none;">
+    <audio id="christmasAudio" loop preload="auto" style="display: none;">
         <source src="tree.mp3" type="audio/mpeg">
         您的浏览器不支持音频元素。
     </audio>
@@ -312,30 +329,29 @@
                                                     // 0.3: 适中变化，自然闪烁(✨推荐)
                                                     // 0.8: 变化快，闪烁明显
                 
-                // 🌨️ 分段式速度过渡常量 - 慢速→中速→正常速度
-            SLOW_PHASE_DURATION: 1.5,        // 🐌 慢速阶段持续时间(0.5-3.0秒) - 初始极慢飘落时间
-                                                                 // 0.5秒: 很短，几乎没慢速效果
-                                                                 // 1.5秒: 适中，有明显的开始慢感(✨推荐)
+                // 🌨️ 分段式速度过渡常量 - 慢速→中速→正常速度（优化平缓度）
+            SLOW_PHASE_DURATION: 2.5,        // 🐌 慢速阶段持续时间(0.5-3.0秒) - 初始极慢飘落时间
+                                                                 // 1.5秒: 适中，有明显的开始慢感
+                                                                 // 2.5秒: 更长，营造缓缓飘落的感觉(✨已优化)
                                                                  // 3.0秒: 很长，营造缓缓飘落的感觉
-            MEDIUM_PHASE_DURATION: 3.0,      // 🚶 中速阶段持续时间(1.0-4.0秒) - 中等速度飘落时间  
-                                                                 // 1.0秒: 短暂过渡，快速到正常速度
-                                                                 // 2.0秒: 适中，过渡自然(✨推荐)
-                                                                 // 4.0秒: 漫长过渡，保持中速较久
-            INITIAL_SPEED_FACTOR: 0.05,      // 🌟 极慢速度因子(0.02-0.1) - 初始飘落速度
+            MEDIUM_PHASE_DURATION: 4.0,      // 🚶 中速阶段持续时间(1.0-4.0秒) - 中等速度飘落时间  
+                                                                 // 3.0秒: 适中，过渡自然
+                                                                 // 4.0秒: 漫长过渡，保持中速更久(✨已优化)
+            INITIAL_SPEED_FACTOR: 0.03,      // 🌟 极慢速度因子(0.02-0.1) - 初始飘落速度
                                                                  // 0.02: 几乎静止，像悬浮在空中
-                                                                 // 0.05: 极慢飘落，有飘动感(✨推荐)
-                                                                 // 0.1: 较慢飘落，过渡不太明显
-            MEDIUM_SPEED_FACTOR: 0.2,        // 🌤️ 中速速度因子(0.1-0.4) - 中期飘落速度
-                                                                 // 0.1: 偏慢，与极速区别不大
-                                                                 // 0.2: 适中，有明显速度变化(✨推荐)
+                                                                 // 0.03: 极慢飘落，更自然的开始(✨已优化)
+                                                                 // 0.05: 极慢飘落，有飘动感
+            MEDIUM_SPEED_FACTOR: 0.15,       // 🌤️ 中速速度因子(0.1-0.4) - 中期飘落速度
+                                                                 // 0.15: 更平缓的中速过渡(✨已优化)
+                                                                 // 0.2: 适中，有明显速度变化
                                                                  // 0.4: 偏快，接近正常速度
-            SLOW_EASING_EXPONENT: 2.0,       // 📈 慢→中速缓动指数(1.0-3.0) - 第一阶段加速曲线形状
-                                                                 // 1.0: 线性加速 - 匀速变快
-                                                                 // 2.0: 平滑加速 - 开始很慢，后来变快(✨推荐)
-                                                                 // 3.0: 急剧加速 - 长时间慢速，突然变快
-            MEDIUM_EASING_EXPONENT: 2.5      // 📊 中→正常速缓动指数(1.0-4.0) - 第二阶段加速曲线形状
-                                                                 // 1.0: 线性加速 - 匀速到正常
-                                                                 // 2.5: 平滑加速 - 自然过渡(✨推荐)
+            SLOW_EASING_EXPONENT: 3.0,       // 📈 慢→中速缓动指数(1.0-3.0) - 第一阶段加速曲线形状
+                                                                 // 2.0: 平滑加速 - 开始很慢，后来变快
+                                                                 // 3.0: 更平缓的加速曲线(✨已优化)
+                                                                 // 4.0: 急剧加速 - 长时间慢速，突然变快
+            MEDIUM_EASING_EXPONENT: 3.5      // 📊 中→正常速缓动指数(1.0-4.0) - 第二阶段加速曲线形状
+                                                                 // 2.5: 平滑加速 - 自然过渡
+                                                                 // 3.5: 更平缓的最终过渡(✨已优化)
                                                                  // 4.0: 急剧加速 - 长时间中速，突然正常
             },
             
@@ -494,15 +510,8 @@
                 
                 // 如果是雪花阶段，特殊处理
                 if (stageId === 'snow') {
-                    // 立即启动雪花动画
-                    if (animationParams && animationParams.snowSystem) {
-                        animationParams.snowSystem.snowParticles.visible = true;
-                        animationParams.snowSystem.snowParticles.material.opacity = 0;
-                        if (animationParams.animationState) {
-                            animationParams.animationState.snowStarted = true;
-                            animationParams.animationState.snowStartTime = Date.now();
-                        }
-                    }
+                    // 🎯 关键修复：Promise链中不立即启动雪花，让绝对时间控制生效
+                    console.log('❄️ 雪花阶段准备就绪，等待绝对时间触发启动');
                     
                     // 雪花是持续动画，直接resolve
                     resolve();
@@ -538,30 +547,43 @@
 
 
 
-        // 页面加载完成后初始化Three.js和音频控制
+        // 页面加载完成后立即初始化Three.js（先加载背景）
         window.addEventListener('DOMContentLoaded', () => {
-            // 初始化Three.js
             initThreeJs();
-            
-            // 初始化音频控制 - 自动循环播放
-            initAudioControls();
         }); // DOM加载完成事件监听器
         
         /**
-         * 初始化音频控制 - 自动循环播放
+         * 背景加载完成后显示启动界面
          */
-        function initAudioControls() {
-            const audio = document.getElementById('christmasAudio');
+        function showStartScreen() {
+            const start = document.getElementById('start');
             
-            // 设置初始音量
-            audio.volume = 0.5;
+            // 显示启动界面
+            start.style.display = 'flex';
+            console.log('🖱️ 启动界面已显示，等待用户点击');
             
-            // 尝试自动播放音频
-            audio.play().then(() => {
-                console.log('🎵 背景音乐开始自动循环播放');
-            }).catch(error => {
-                console.warn('⚠️ 自动播放失败（浏览器策略限制），需要用户交互后才能播放音乐:', error);
-                // 如果自动播放失败，不做任何操作，保持静音
+            start.addEventListener('click', () => {
+                // 播放音乐
+                const audio = document.getElementById('christmasAudio');
+                audio.loop = true;
+                audio.volume = 0.5;
+                audio.play().then(() => {
+                    console.log('🎵 背景音乐开始播放');
+                }).catch(error => {
+                    console.error('❌ 播放音乐失败:', error);
+                });
+                
+                // 移除启动界面
+                start.remove();
+                
+                // 启动粒子系统和完整动画
+                setTimeout(() => {
+                    console.log('🌟 开始初始化粒子系统...');
+                    // 直接启动动画序列
+                    runAnimationSequence();
+                    initParticles();
+                    particlesStarted = true;
+                }, CONFIG.TIMING.PARTICLE_INIT_DELAY);
             });
         }
         
@@ -600,7 +622,7 @@
             // 添加窗口大小调整事件监听
             window.addEventListener('resize', () => onWindowResize(camera, renderer)); // 监听窗口大小变化
             
-            // 尝试加载背景图片，加载完成后再开始动画
+            // 尝试加载背景图片，加载完成后显示启动界面
             tryLoadBackgroundImage(scene, renderer, camera, () => {
                 // 背景加载完成，渲染第一帧
                 renderer.render(scene, camera);
@@ -609,14 +631,9 @@
                 // 开始简单的动画循环（只渲染背景）
                 animate();
                 
-                // ⭐ 延迟初始化粒子系统
-                    setTimeout(() => {
-                        console.log('🌟 开始初始化粒子系统...');
-                        // 直接启动动画序列
-                        runAnimationSequence();
-                        initParticles();
-                        particlesStarted = true;
-                    }, CONFIG.TIMING.PARTICLE_INIT_DELAY);
+                // 背景加载完成后，显示启动界面
+                console.log('🖱️ 背景加载完成，显示启动界面');
+                showStartScreen();
             });
         } // initThreeJs函数结束
         
@@ -868,26 +885,39 @@
             
             const elapsedSinceSnowStart = snowStartTime ? (Date.now() - snowStartTime) / 1000 : 0;
             
-            // 🌨️ 计算三阶段速度因子 - 慢速→中速→正常速度
+            // 🌨️ 计算三阶段速度因子 - 慢速→中速→正常速度（优化版）
             let currentSpeedFactor = CONFIG.SNOW_ANIMATION.FALL_SPEED_FACTOR;
             
             if (elapsedSinceSnowStart > 0) {
                 const totalTransitionTime = CONFIG.SNOW_ANIMATION.SLOW_PHASE_DURATION + CONFIG.SNOW_ANIMATION.MEDIUM_PHASE_DURATION;
                 
                 if (elapsedSinceSnowStart <= CONFIG.SNOW_ANIMATION.SLOW_PHASE_DURATION) {
-                    // 🐌 第一阶段：极慢速度
+                    // 🐌 第一阶段：极慢速度 - 使用更平滑的缓动函数
                     const progress = elapsedSinceSnowStart / CONFIG.SNOW_ANIMATION.SLOW_PHASE_DURATION;
-                    const easedProgress = 1 - Math.pow(1 - progress, CONFIG.SNOW_ANIMATION.SLOW_EASING_EXPONENT);
+                    // 使用smoothstep函数获得更平滑的过渡
+                    const smoothProgress = progress * progress * (3.0 - 2.0 * progress);
+                    // 结合幂函数和smoothstep，创造更自然的加速感
+                    const easedProgress = smoothProgress * Math.pow(progress, CONFIG.SNOW_ANIMATION.SLOW_EASING_EXPONENT * 0.5);
                     currentSpeedFactor = CONFIG.SNOW_ANIMATION.INITIAL_SPEED_FACTOR + 
                                        (CONFIG.SNOW_ANIMATION.MEDIUM_SPEED_FACTOR - CONFIG.SNOW_ANIMATION.INITIAL_SPEED_FACTOR) * easedProgress;
                 } else if (elapsedSinceSnowStart <= totalTransitionTime) {
-                    // 🚶 第二阶段：中速过渡到正常速度
+                    // 🚶 第二阶段：中速过渡到正常速度 - 更平缓的过渡
                     const phaseProgress = (elapsedSinceSnowStart - CONFIG.SNOW_ANIMATION.SLOW_PHASE_DURATION) / CONFIG.SNOW_ANIMATION.MEDIUM_PHASE_DURATION;
-                    const easedProgress = 1 - Math.pow(1 - phaseProgress, CONFIG.SNOW_ANIMATION.MEDIUM_EASING_EXPONENT);
+                    // 使用更平滑的缓动函数组合
+                    const smoothProgress = phaseProgress * phaseProgress * (3.0 - 2.0 * phaseProgress);
+                    const easedProgress = smoothProgress * Math.pow(phaseProgress, CONFIG.SNOW_ANIMATION.MEDIUM_EASING_EXPONENT * 0.4);
                     currentSpeedFactor = CONFIG.SNOW_ANIMATION.MEDIUM_SPEED_FACTOR + 
                                        (CONFIG.SNOW_ANIMATION.FALL_SPEED_FACTOR - CONFIG.SNOW_ANIMATION.MEDIUM_SPEED_FACTOR) * easedProgress;
                 }
                 // 🏃 第三阶段：已经达到正常速度，保持不变
+                
+                // 🌊 添加微小的平滑过渡，避免突然的速度跳跃
+                if (elapsedSinceSnowStart > totalTransitionTime && elapsedSinceSnowStart <= totalTransitionTime + 0.5) {
+                    // 在过渡完成后的0.5秒内，继续平滑到最终速度
+                    const smoothingProgress = (elapsedSinceSnowStart - totalTransitionTime) / 0.5;
+                    const smoothFactor = 0.9 + 0.1 * smoothingProgress; // 从0.9平滑到1.0
+                    currentSpeedFactor *= smoothFactor;
+                }
             }
             
             for (let i = 0; i < particleCount; i++) {
@@ -914,15 +944,18 @@
                     positionsArray[i3] += WIND_DIRECTION.x * windEffectFactor;
                     positionsArray[i3 + 2] += WIND_DIRECTION.z * windEffectFactor;
                     
-                    // 🌨️ 左右摇摆 - 配合三阶段速度过渡的摇摆效果
+                    // 🌨️ 左右摇摆 - 配合三阶段速度过渡的摇摆效果（优化版）
                     let swayFactor = 1.0;
                     if (elapsedSinceSnowStart <= CONFIG.SNOW_ANIMATION.SLOW_PHASE_DURATION) {
-                        // 极慢阶段：最小摇摆
-                        swayFactor = 0.1 + 0.4 * (elapsedSinceSnowStart / CONFIG.SNOW_ANIMATION.SLOW_PHASE_DURATION);
+                        // 极慢阶段：最小摇摆 - 使用平滑过渡
+                        const progress = elapsedSinceSnowStart / CONFIG.SNOW_ANIMATION.SLOW_PHASE_DURATION;
+                        const smoothProgress = progress * progress * (3.0 - 2.0 * progress);
+                        swayFactor = 0.05 + 0.35 * smoothProgress; // 从0.05平滑到0.4
                     } else if (elapsedSinceSnowStart <= CONFIG.SNOW_ANIMATION.SLOW_PHASE_DURATION + CONFIG.SNOW_ANIMATION.MEDIUM_PHASE_DURATION) {
-                        // 中速阶段：逐渐增加摇摆到正常
+                        // 中速阶段：逐渐增加摇摆到正常 - 更平滑的过渡
                         const mediumProgress = (elapsedSinceSnowStart - CONFIG.SNOW_ANIMATION.SLOW_PHASE_DURATION) / CONFIG.SNOW_ANIMATION.MEDIUM_PHASE_DURATION;
-                        swayFactor = 0.5 + 0.5 * mediumProgress;
+                        const smoothProgress = mediumProgress * mediumProgress * (3.0 - 2.0 * mediumProgress);
+                        swayFactor = 0.4 + 0.6 * smoothProgress; // 从0.4平滑到1.0
                     }
                     // 正常阶段：保持完整摇摆
                     
@@ -1751,8 +1784,82 @@
                     }
                 }
                 
+                // 🎄 非线性呼吸效果 - 只对树冠进行呼吸
+                if (animationState.treeCompleted && elapsed >= sparkleEnd + CONFIG.ANIMATION_PHASES.TREE_FORMED_DURATION) {
+                    // 非线性呼吸函数：吸快、呼慢
+                    const breathe = (t) => {
+                        const s = Math.sin(t);
+                        return s > 0
+                            ? Math.pow(s, 1.6)   // 吸气更用力
+                            : -Math.pow(-s, 2); // 呼气更慢
+                    };
+                    
+                    const b = breathe(time * 0.8);
+                    const breathScale = 1 + b * 0.045; // 安全但明显的呼吸幅度
+                    
+                    // 🌟 只对树冠（上半部分）进行呼吸缩放
+                    particleBatches.forEach((points, batchIndex) => {
+                        const geometry = points.geometry;
+                        const positions = geometry.attributes.position.array;
+                        const targetPositions = geometry.attributes.targetPosition.array;
+                        
+                        // 为每个粒子计算基于高度的呼吸缩放
+                        for (let i = 0; i < positions.length; i += 3) {
+                            const treeY = targetPositions[i + 1]; // 树形中的Y坐标位置
+                            const treeHeight = 12; // 树的总高度参考值
+                            
+                            // 计算该粒子在树中的相对高度（0=底部，1=顶部）
+                            const relativeHeight = (treeY + CONFIG.TREE.POSITION_OFFSET.y + treeHeight/2) / treeHeight;
+                            
+                            // 只对上半部分（树冠）进行呼吸，底部0.4以下不参与
+                            const breatheFactor = relativeHeight > 0.4 ? 
+                                THREE.MathUtils.smoothstep(0.4, 0.6, relativeHeight) : 0;
+                            
+                            // 应用基于高度的呼吸缩放
+                            if (breatheFactor > 0) {
+                                const scaleForThisParticle = 1 + (breathScale - 1) * breatheFactor;
+                                
+                                // 以树的中心为基准进行缩放
+                                const centerY = CONFIG.TREE.POSITION_OFFSET.y;
+                                const yDistance = positions[i + 1] - centerY;
+                                
+                                positions[i + 1] = centerY + yDistance * scaleForThisParticle;
+                                
+                                // XZ平面也相应缩放，保持树的自然形状
+                                positions[i] = positions[i] * scaleForThisParticle;
+                                positions[i + 2] = positions[i + 2] * scaleForThisParticle;
+                            }
+                        }
+                        
+                        geometry.attributes.position.needsUpdate = true;
+                    });
+                }
+                
                 // 更新相机位置
                 updateCameraPosition(camera, cameraControls);
+                
+                // 🎯 关键修复：检查雪花启动条件（绝对时间控制）
+                if (!animationState.snowStarted) {
+                    let shouldStartSnow = false;
+                    
+                    if (CONFIG.ANIMATION_PHASES.USE_ABSOLUTE_SNOW_TIMING) {
+                        // 🔥 关键：绝对时间控制
+                        const elapsedSinceAnimationStart = now - animationState.startTime;
+                        shouldStartSnow = elapsedSinceAnimationStart >= CONFIG.ANIMATION_PHASES.SNOW_START_DELAY_ABSOLUTE; // 4000ms
+                        console.log(`🕐 雪花启动检查: 已经过时间 ${elapsedSinceAnimationStart}ms, 需要时间 ${CONFIG.ANIMATION_PHASES.SNOW_START_DELAY_ABSOLUTE}ms`);
+                    } else {
+                        // 🔥 关键：相对时间控制
+                        shouldStartSnow = animationState.treeCompleted;
+                    }
+                    
+                    if (shouldStartSnow) {
+                        console.log('❄️ 启动雪花动画！');
+                        snowSystem.snowParticles.visible = true;
+                        snowSystem.snowParticles.material.opacity = 0;
+                        animationState.snowStarted = true;
+                        animationState.snowStartTime = now;
+                    }
+                }
                 
                 // 只有在雪花开始后才更新雪花动画
                 if (animationState.snowStarted) {

@@ -17,71 +17,160 @@
         canvas {
             display: block;
         }
+        
+        /* 🕒 动画阶段计时器样式 */
+
     </style>
 </head>
 <body>
+
+    <!-- 音频元素 - 自动循环播放，不显示 -->
+    <audio id="christmasAudio" loop autoplay preload="auto" style="display: none;">
+        <source src="tree.mp3" type="audio/mpeg">
+        您的浏览器不支持音频元素。
+    </audio>
+
+    
     <script src="three.min.js"></script>
     <script>
+        // Three.js对象工厂函数 - 减少重复的new THREE调用（需要在CONFIG之前定义）
+        const ThreeFactory = {
+            // 创建Vector3对象的快捷方法
+            Vector3: (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z),
+            
+            // 创建Color对象的快捷方法  
+            Color: (color) => new THREE.Color(color),
+            
+            // 创建BufferAttribute的快捷方法
+            BufferAttribute: (array, itemSize) => new THREE.BufferAttribute(array, itemSize),
+            
+            // 创建点光源的快捷方法
+            PointLight: (color, intensity, distance) => new THREE.PointLight(color, intensity, distance),
+            
+            // 创建CanvasTexture的快捷方法
+            CanvasTexture: (canvas) => new THREE.CanvasTexture(canvas)
+        };
+
         // 常量定义：定义所有系统参数配置
         const CONFIG = { // 创建全局配置对象
-            // 雪花系统配置
+            // 雪花系统配置 - ❄️ 控制雪花的基本物理属性
             SNOW: { // 雪花相关参数
-                COUNT: 3000, // 雪花粒子总数，减少数量提高性能
-                MAX_HEIGHT: 30, // 雪花最大高度（Y轴坐标上限）
-                MIN_HEIGHT: -5, // 雪花最小高度（Y轴坐标下限）
-                RANGE: 40, // 雪花分布范围（X和Z轴的随机范围）
-                WIND_DIRECTION: new THREE.Vector3(-0.015, 0, -0.008), // 风的方向向量（X和Z轴偏移）
-                BASE_SPEED: 0.055, // 雪花基础下落速度，已提高
-                SPEED_VARIANCE: 0.12 // 速度变化范围，增加使下落更自然
+                COUNT: 3500, //  控制雪花的密度
+                MAX_HEIGHT: 30, // 雪花最大高度(20-50) - 雪花起始高度
+                MIN_HEIGHT: -5, // 雪花最小高度(-10-5) - 雪花消失重新生成的位置
+                RANGE: 40, // 雪花分布范围(20-80) - 雪花在X和Z轴的分布区域
+                           // 20: 分布集中，雪花区域小
+                           // 40: 适中分布，覆盖主要区域(✨推荐)
+                           // 80: 分布广泛，覆盖整个场景
+                WIND_DIRECTION: ThreeFactory.Vector3(-0.015, 0, 0.008), // 风的方向向量(-0.05-0.05) - 控制雪花的飘向
+                                                                                    // X负值: 向左飘，正值: 向右飘
+                                                                                    // Z负值: 向后飘，正值: 向前飘
+                BASE_SPEED: 0.01, // 雪花基础下落速度(0.02-0.15) - 控制整体下落快慢
+                                  // 0.02: 极慢下落，像空中悬浮
+                                  // 0.055: 适中速度，自然飘落感(✨推荐)
+                                  // 0.15: 快速下落，像暴风雪
+                SPEED_VARIANCE: 0.11 // 速度变化范围(0.05-0.3) - 雪花速度的随机差异
+                                    // 0.05: 速度统一，机械感强
+                                    // 0.12: 适中差异，自然飘落(✨推荐)
+                                    // 0.3: 速度差异大，混乱感强
             }, // SNOW配置结束
-            // 树系统配置
+            // 树系统配置 - 🎄 控制圣诞树的外观和动画效果
             TREE: { // 圣诞树相关参数
-                PARTICLE_COUNT: 10000, // 树的总粒子数量
-                TRUNK_RATIO: 0.15, // 树干粒子比例（15%）
-                TRUNK_HEIGHT: 2, // 树干高度
-                TRUNK_BASE_RADIUS: 0.6, // 树干底部半径
-                TRUNK_TOP_RADIUS: 0.2, // 树干顶部半径
-                LEAF_HEIGHT_RANGE: 10, // 树叶高度范围
-                LEAF_BASE_HEIGHT: 1, // 树叶起始高度
-                LEAF_BASE_RADIUS: 4.26, // 树叶基础半径
-                RIBBON_PROBABILITY: 0.12, // 彩带粒子出现概率（3%）
-                RIBBON_COUNT: 3, // 彩带数量
-                RIBBON_SPIRAL_TURNS: 3, // 彩带螺旋圈数
-                POSITION_OFFSET: new THREE.Vector3(0, -7, 0), // 树的位置偏移向量
-                SCALE: new THREE.Vector3(2, 2.2, 2), // 树的缩放比例
-                TILT_X: THREE.MathUtils.degToRad(-30), // X轴倾斜角度（转换为弧度）
-                ROTATION_SPEED: -0.005, // 树的旋转速度（负值表示逆时针）
-                BATCH_SIZE: 600, // 每批处理的粒子数量
-                BATCH_INTERVAL: 120 // 批次间隔时间（毫秒），控制星星点亮速度
-            }, // TREE配置结束
-            // 相机配置
+                PARTICLE_COUNT: 13000, // 树的总粒子数量(5000-20000) - 控制树的密度和质量
+                TRUNK_RATIO: 0.15, // 树干粒子比例(0.1-0.3) - 控制树干的粗细程度
+                TRUNK_HEIGHT: 2, // 树干高度(1-4) - 控制树干的垂直长度
+                TRUNK_BASE_RADIUS: 0.6, // 树干底部半径(0.3-1.0) - 树干底部粗细
+                TRUNK_TOP_RADIUS: 0.2, // 树干顶部半径(0.05-0.4) - 树干顶部粗细
+                LEAF_HEIGHT_RANGE: 10, // 树叶高度范围(5-15) - 控制树冠的垂直跨度
+                LEAF_BASE_HEIGHT: 1, // 树叶起始高度(0-2) - 树叶从多高开始生长
+                LEAF_BASE_RADIUS: 4.26, // 树叶基础半径(2-8) - 控制树冠的宽度
+                RIBBON_PROBABILITY: 0.15, // 彩带粒子出现概率(0.05-0.3) - 增加彩带密度
+                RIBBON_COUNT: 4, // 彩带数量(1-6) - 增加一条彩带
+                RIBBON_SPIRAL_TURNS: 4, // 彩带螺旋圈数(1-5) - 增加螺旋圈数，使彩带更丰富
+                POSITION_OFFSET: ThreeFactory.Vector3(0, -7, 0), // 树的位置偏移向量(X:-5-5, Y:-10-0, Z:-5-5) - 控制树在场景中的位置
+                                                                                    // Y值控制树的整体高度位置
+                                                                                    // -7: 适中位置，树底部接近地面(✨推荐)
+                SCALE: ThreeFactory.Vector3(2, 2.2, 2), // 树的缩放比例(0.5-3.0) - 控制树的整体大小
+                TILT_X: THREE.MathUtils.degToRad(-24), // X轴倾斜角度(-60°-60°) - 树的前后倾斜程度
+                BATCH_SIZE: 600, // 每批处理的粒子数量(300-1200) - 控制星形的粒子密度
+                                  // 300: 小批，星形更精细但批次更多
+                                  // 600: 适中批次，平衡效果(✨推荐)
+                                  // 1200: 大批，星形较粗但过渡更快
+            }, 
+            // 相机配置 - 📷 控制观察视角和透视效果
             CAMERA: { // 相机相关参数
-                FOV: 65, // 视场角度（度数）
-                NEAR: 0.1, // 近裁剪面距离
-                FAR: 1000, // 远裁剪面距离
-                INITIAL_POSITION: new THREE.Vector3(12, 7, 12), // 相机初始位置
-                TARGET: new THREE.Vector3(0, 4, 0) // 相机观察目标点
+                FOV: 65, // 视场角度(30-120度) - 控制视野宽度
+                         // 30: 窄视野，望远效果，树显得更大
+                         // 65: 适中视野，标准视角(✨推荐)
+                         // 120: 宽视野，广角效果，能看到更多场景
+                NEAR: 0.1, // 近裁剪面距离(0.01-1.0) - 最近能看到的距离
+                            // 0.01: 极近距离，可看到很近的物体
+                            // 0.1: 适中近距，标准设置(✨推荐)
+                            // 1.0: 较远近距，避免近处物体
+                FAR: 1000, // 远裁剪面距离(100-5000) - 最远能看到的距离
+                            // 100: 较短距离，远处物体会被裁剪
+                            // 1000: 适中距离，涵盖整个场景(✨推荐)
+                            // 5000: 超远距离，确保所有物体可见
+                INITIAL_POSITION: ThreeFactory.Vector3(12, 7, 12), // 相机初始位置(X:5-20, Y:3-15, Z:5-20) - 控制观察点的位置
+                                                                 // X,Z值控制水平位置，Y值控制高度
+                                                                 // (12,7,12): 右前方较高位置，俯视角度(✨推荐)
+                                                                 // (15,10,15): 更远更高，更广视角
+                                                                 // (8,5,8): 更近更低，更沉浸视角
+                TARGET: ThreeFactory.Vector3(0, 4, 0) // 相机观察目标点(X:-5-5, Y:0-10, Z:-5-5) - 控制相机看向哪里
+                                                     // Y值控制观察点的垂直位置
+                                                     // (0,4,0): 看向树的中部(✨推荐)
+                                                     // (0,7,0): 看向树的上部
+                                                     // (0,1,0): 看向树的下部
             }, // CAMERA配置结束
-            // 灯光配置
-            LIGHTS: [ // 装饰灯光配置数组
-                { color: 0xff0000, intensity: 0.8, distance: 5, flickerSpeed: 1.0 },  // 红色灯光
-                { color: 0x00ff00, intensity: 0.6, distance: 4, flickerSpeed: 1.2 },  // 绿色灯光
-                { color: 0x0000ff, intensity: 0.7, distance: 4.5, flickerSpeed: 2.0 },  // 蓝色灯光
-                { color: 0xffff00, intensity: 0.9, distance: 5.5, flickerSpeed: 1.5 }   // 黄色灯光
+            // 灯光配置 - 💡 控制装饰灯的颜色和闪烁效果
+            LIGHTS: [ // 装饰灯光配置数组 - 可增减灯光数量和调整参数
+                { 
+                    color: 0xff0000, // 红色灯光(0xff0000) - 圣诞经典颜色
+                    intensity: 0.8,   // 强度(0.2-2.0) - 控制亮度
+                                       // 0.2: 微弱灯光，点缀效果
+                                       // 0.8: 适中亮度，温暖氛围(✨推荐)
+                                       // 2.0: 强烈灯光，视觉冲击力强
+                    distance: 5,      // 影响距离(2-10) - 光照范围
+                                       // 2: 小范围，局部照明
+                                       // 5: 适中范围，照亮周围(✨推荐)
+                                       // 10: 大范围，广域照明
+                    flickerSpeed: 1.0 // 闪烁频率(0.2-3.0) - 控制闪烁快慢
+                                       // 0.2: 缓慢闪烁，平静效果
+                                       // 1.0: 适中闪烁，活泼感(✨推荐)
+                                       // 3.0: 快速闪烁，动感强烈
+                },  
+                { 
+                    color: 0x00ff00, // 绿色灯光 - 自然色彩
+                    intensity: 0.6,   // 较低强度，与红色平衡
+                    distance: 4,      // 中等范围
+                    flickerSpeed: 1.2 // 稍快闪烁
+                },  
+                { 
+                    color: 0x0000ff, // 蓝色灯光 - 冷色调
+                    intensity: 0.7,   // 中等强度
+                    distance: 4.5,    // 稍大范围
+                    flickerSpeed: 2.0 // 快速闪烁，增加活力
+                },   
+                { 
+                    color: 0xffff00, // 黄色灯光 - 温暖色调
+                    intensity: 0.9,   // 较高强度，突出感
+                    distance: 5.5,    // 大范围照明
+                    flickerSpeed: 1.5 // 中等速度闪烁
+                }
             ], // LIGHTS配置结束
             // 颜色配置
             COLORS: { // 颜色相关参数
-                TREE: [ // 树的颜色数组
-                    new THREE.Color(0x008800),  // 深绿色（树主体）
-                    new THREE.Color(0x006600),  // 更深的绿色（树主体）
-                    new THREE.Color(0x009933),  // 冷绿色（树主体）
-                    new THREE.Color(0x005522),  // 最冷的绿色（树主体）
-                    new THREE.Color(0xff0000),  // 红色（装饰）
-                    new THREE.Color(0xffcc00),  // 金色（装饰）
-                    new THREE.Color(0x0000cc),  // 深蓝色（装饰）
-                    new THREE.Color(0xffffcc),  // 淡黄色（高光）
-                    new THREE.Color(0xffffff),  // 白色（高光）
-                    new THREE.Color(0x5D3A00)   // 深棕色（树干）
+                TREE: [ // 树的颜色数组 - 增强亮度版本
+                    ThreeFactory.Color(0x00AA00),  // 亮绿色（树主体）(✨已调亮)
+                    ThreeFactory.Color(0x008800),  // 深绿色（树主体）(✨已调亮)
+                    ThreeFactory.Color(0x00CC33),  // 亮冷绿色（树主体）(✨已调亮)
+                    ThreeFactory.Color(0x007733),  // 冷绿色（树主体）(✨已调亮)
+                    ThreeFactory.Color(0xff3333),  // 亮红色（装饰）(✨已调亮)
+                    ThreeFactory.Color(0xffdd33),  // 亮金色（装饰）(✨已调亮)
+                    ThreeFactory.Color(0x3333ff),  // 亮蓝色（装饰）(✨已调亮)
+                    ThreeFactory.Color(0xffffdd),  // 亮淡黄色（高光）(✨已调亮)
+                    ThreeFactory.Color(0xffffff),  // 白色（高光）
+                    ThreeFactory.Color(0x7D5A20)   // 亮棕色（树干）(✨已调亮)
                 ], // TREE颜色数组结束
                 RIBBON: [4, 5, 6]  // 彩带使用的颜色索引（对应TREE数组中的颜色）
             }, // COLORS配置结束
@@ -90,50 +179,115 @@
                 PULSE_SPEED: 2.0, // 脉冲动画速度
                 PULSE_AMOUNT: 0.1, // 脉冲动画幅度
                 DECORATION_FLICKER_SPEED: 5.0, // 装饰灯闪烁速度
-                PARTICLE_ANIMATION: { // 粒子动画参数
-                    STAR_PHASE_DURATION: 4000,  // 星形闪耀阶段持续时间（毫秒）
-                    TRANSITION_DURATION: 8000,   // 从星形到树形态过渡时间（毫秒）
-                    START_DELAY: 200,  // 开始延迟（毫秒）
-                    EASE_FACTOR: 1.2,  // 缓动因子，控制过渡平滑度
-                    INITIAL_RADIUS: 40,  // 粒子初始随机分布半径
-                    ALL_PARTICLES_VISIBLE_DELAY: 500   // 等待所有粒子出现后再开始移动
-                } // PARTICLE_ANIMATION结束
             }, // ANIMATION配置结束
             
             // 粒子亮度常量 - 🎨 调整这些值可以改变整体的明暗效果
             BRIGHTNESS: {
-                TRUNK_SHADOW_BASE: 10,        // 🌲 树干基础阴影因子(0.8-1.5) - 越大越亮，越小越暗
-                TRUNK_SHADOW_HEIGHT_FACTOR: 0.5, // 📏 树干高度阴影渐变强度(0.0-0.3) - 越大顶部越亮
-                RIBBON_BRIGHTNESS_MULTIPLIER: 1.1, // 🎀 彩带亮度倍数(1.0-1.5) - 越大彩带越突出
-                SPARKLE_BASE_INITIAL: 1.15,       // ✨ 初始闪耀基础亮度(0.5-1.5) - 星形阶段基础明度
-                SPARKLE_AMPLITUDE_INITIAL: 0.5,   // 🌟 初始闪耀幅度(0.1-0.8) - 闪烁变化强度
-                SPARKLE_BASE_FINAL: 1.15,          // 🎄 最终闪耀基础亮度(0.7-1.2) - 成树后基础明度
-                SPARKLE_AMPLITUDE_FINAL: 0.15,     // 🎊 最终闪耀幅度(0.05-0.3) - 成树后闪烁强度
-                BACKGROUND_OVERLAY_ALPHA: 0.3,       // 🌃 背景暗化覆盖层透明度(0.0-0.5) - 越大背景越暗
-                BACKGROUND_MULTIPLY_ALPHA: 0.7       // 🌌 背景暗化乘法透明度(0.3-0.9) - 越大图片越暗
+                TRUNK_SHADOW_BASE: 1.2,        // 🌲 树干基础阴影因子(0.8-1.5) - 控制树干整体亮度
+                                              // 0.8: 较暗树干，显得沉稳
+                                              // 1.0: 正常亮度，自然效果
+                                              // 1.2: 明亮树干，突出存在感(✨已调亮)
+                TRUNK_SHADOW_HEIGHT_FACTOR: 0.8, // 📏 树干高度阴影渐变强度(0.0-0.3) - 控制树干上下亮度差异
+                                                   // 0.0: 无渐变，上下亮度一致
+                                                   // 0.15: 轻微渐变，顶部略亮
+                                                   // 0.8: 明显渐变，顶部更亮(✨已增强)
+                RIBBON_BRIGHTNESS_MULTIPLIER: 1.4, // 🎀 彩带亮度倍数(1.0-1.5) - 控制彩带的突出程度
+                                                        // 1.0: 与其他粒子同亮度，融入整体
+                                                        // 1.3: 稍亮，装饰感明显
+                                                        // 1.4: 较亮，彩带更加突出(✨推荐)
+                SPARKLE_BASE_INITIAL: 2.0,       // ✨ 初始闪耀基础亮度(0.5-1.5) - 星形阶段的基础明度
+                                                   // 0.5: 暗淡星形，低调效果
+                                                   // 1.15: 适中亮度，星形清晰
+                                                   // 1.5: 明亮星形，视觉冲击强
+                                                   // 2.0: 高亮度星形，闪烁效果更明显(✨推荐)
+                SPARKLE_AMPLITUDE_INITIAL: 1.0,   // 🌟 初始闪耀幅度(0.1-1.5) - 星形闪烁的变化强度
+                                                   // 0.1: 轻微闪烁，稳定感
+                                                   // 0.7: 明显闪烁，活泼感
+                                                   // 0.8: 剧烈闪烁，动感强烈
+                                                   // 1.0: 高幅度闪烁，频闪效果(✨推荐)
+                SPARKLE_BASE_FINAL: 1.2,          // � 最终闪耀基础亮度(0.7-1.2) - 成树后的基础明度
+                                                   // 0.7: 较暗效果，沉稳感
+                                                   // 1.15: 适中亮度，自然效果(✨推荐)
+                                                   // 1.2: 明亮效果，活力感强
+                SPARKLE_AMPLITUDE_FINAL: 0.2,     // 🎊 最终闪耀幅度(0.05-0.3) - 成树后的闪烁强度
+                SPARKLE_FREQUENCY_INITIAL: 4.0,    // ✨ 初始闪烁频率(2.0-20.0) - 星形阶段闪烁快慢
+                SPARKLE_FREQUENCY_FINAL: 3.0,      // ✨ 最终闪烁频率(1.0-6.0) - 成树后闪烁快慢
+                SPARKLE_AMPLITUDE_INITIAL: 0.3,      // 🌟 初始闪烁幅度(0.1-0.8) - 星形阶段闪烁变化强度
+                BACKGROUND_OVERLAY_ALPHA: 0.1,       // 🌃 背景暗化覆盖层透明度(0.0-0.5) - 控制背景的暗化程度
+                                                     // 0.0: 无暗化，保持原背景亮度
+                                                     // 0.3: 适中暗化，突出前景(✨推荐)
+                                                     // 0.5: 强烈暗化，背景很暗
+                BACKGROUND_MULTIPLY_ALPHA: 0.7       // 🌌 背景暗化乘法透明度(0.3-0.9) - 控制背景对比度
+                                                     // 0.3: 轻微调暗，保持原色
+                                                     // 0.7: 适中调暗，对比度好(✨推荐)
+                                                     // 0.9: 强烈调暗，对比度很强
             },
             
             // 粒子尺寸常量 - 📏 调整这些值可以改变粒子的大小和分布
             SIZES: {
-                TRUNK_BASE: 2.5,              // 🌲 树干基础大小(1.0-4.0) - 树干粒子基础尺寸
-                TRUNK_VARIANCE: 3.5,          // 📏 树干大小变化范围(1.0-5.0) - 树干尺寸随机变化量
-                LEAF_BASE: 1.8,               // 🍃 树叶基础大小(1.0-3.0) - 树叶粒子基础尺寸
-                LEAF_VARIANCE: 3.5,           // 🌿 树叶大小变化范围(1.0-5.0) - 树叶尺寸随机变化量
-                RIBBON_MULTIPLIER: 2.0,        // 🎀 彩带尺寸倍数(1.5-3.0) - 彩带相对普通粒子的大小倍数
+                TRUNK_BASE: 2.5,              // 🌲 树干基础大小(1.0-4.0) - 控制树干粒子的基础尺寸
+                                              // 1.0: 小树干，纤细造型
+                                              // 2.5: 适中大小，比例协调(✨推荐)
+                                              // 4.0: 大树干，粗壮造型
+                TRUNK_VARIANCE: 3.5,          // 📏 树干大小变化范围(1.0-5.0) - 树干尺寸的随机差异
+                                              // 1.0: 变化小，树干均匀
+                                              // 3.5: 适中变化，自然纹理(✨推荐)
+                                              // 5.0: 变化大，纹理丰富
+                LEAF_BASE: 1.8,               // 🍃 树叶基础大小(1.0-3.0) - 控制树叶粒子的基础尺寸
+                                              // 1.0: 小叶子，精细感
+                                              // 1.8: 适中大小，自然效果(✨推荐)
+                                              // 3.0: 大叶子，茂密感强
+                LEAF_VARIANCE: 3.5,           // 🌿 树叶大小变化范围(1.0-5.0) - 树叶尺寸的随机差异
+                                              // 1.0: 变化小，叶子均匀
+                                              // 3.5: 适中变化，自然层次(✨推荐)
+                                              // 5.0: 变化大，层次丰富
+                RIBBON_MULTIPLIER: 2.2,        // 🎀 彩带尺寸倍数(1.5-3.0) - 彩带相对普通粒子的大小
+                                              // 1.5: 稍大彩带，轻微突出
+                                              // 2.0: 适中大小，装饰效果好
+                                              // 2.2: 较大彩带，装饰感更强烈(✨推荐)
                 TOP_SIZE_FACTOR: 0.9,           // 🎄 树顶部粒子尺寸因子(0.7-1.2) - 树顶部粒子大小调整
+                                              // 0.7: 小顶部，尖锥造型
+                                              // 0.9: 适中顶部，自然锥形(✨推荐)
+                                              // 1.2: 大顶部，平顶造型
                 NORMAL_SIZE_FACTOR: 1.1,         // 🌲 普通粒子尺寸因子(0.8-1.5) - 树身粒子大小调整
-                SIZE_VARIANCE_BASE: 0.95,        // 🎲 尺寸随机变化基础(0.8-1.2) - 粒子尺寸随机基础值
-                SIZE_VARIANCE_RANGE: 0.25        // 🎰 尺寸随机变化范围(0.1-0.5) - 粒子尺寸随机变化范围
+                                              // 0.8: 小粒子，精致感
+                                              // 1.1: 适中粒子，平衡效果(✨推荐)
+                                              // 1.5: 大粒子，饱满感强
+                SIZE_VARIANCE_BASE: 0.95,        // 🎲 尺寸随机变化基础(0.8-1.2) - 粒子尺寸随机的基础值
+                                              // 0.8: 偏小基础，整体精致
+                                              // 0.95: 标准基础，自然效果(✨推荐)
+                                              // 1.2: 偏大基础，整体饱满
+                SIZE_VARIANCE_RANGE: 0.25        // 🎰 尺寸随机变化范围(0.1-0.5) - 粒子尺寸随机的变化幅度
+                                              // 0.1: 变化小，粒子大小均匀
+                                              // 0.25: 适中变化，自然多样性(✨推荐)
+                                              // 0.5: 变化大，粒子大小差异明显
             },
             
             // 系统时序常量 - ⏱️ 调整这些值可以改变动画的时间节奏
             TIMING: {
                 PARTICLE_INIT_DELAY: 500,       // ⏱️ 粒子系统初始化延迟(100-2000) - 页面加载后多久显示粒子(ms)
+                                                    // 100: 立即显示，无延迟
+                                                    // 500: 适中延迟，让用户先看到背景(✨推荐)
+                                                    // 2000: 长延迟，营造期待感
                 BACKGROUND_RENDER_DELAY: 100,     // 🖼️ 背景渲染延迟(50-500) - 背景图片渲染延迟(ms)
-                APPEAR_DURATION: 500,            // 👁️ 粒子出现持续时间(200-1000) - 单批粒子渐显时间(ms)
+                                                    // 50: 快速显示，无缓冲
+                                                    // 100: 适中延迟，确保背景稳定(✨推荐)
+                                                    // 500: 长延迟，给粒子系统准备时间
+                APPEAR_DURATION: 700,            // 👁️ 粒子出现持续时间(200-1000) - 单批粒子渐显时间(ms)
+                                                    // 200: 快速出现，突然感
+                                                    // 700: 适中速度，优雅显现(✨推荐)
+                                                    // 1000: 缓慢出现，渐进感强
                 SNOW_FADE_IN_DURATION: 500,     // ❄️ 雪花淡入持续时间(200-1000) - 雪花渐显时间(ms)
-                FADE_IN_PROGRESS_CLAMP: 1.0,     // 🎯 淡入进度最大值(0.8-1.0) - 淡入完成阈值
-                SNOW_OPACITY_TARGET: 0.8         // 💨 雪花最终透明度(0.3-1.0) - 雪花最大透明度
+                                                    // 200: 快速淡入，即时效果
+                                                    // 500: 适中淡入，自然过渡(✨推荐)
+                                                    // 1000: 缓慢淡入，轻柔效果
+                FADE_IN_PROGRESS_CLAMP: 1.0,     // 🎯 淡入进度最大值(0.8-1.0) - 淡入完成的阈值
+                                                    // 0.8: 提前完成，更快进入下一阶段
+                                                    // 1.0: 完全完成后进入下一阶段(✨推荐)
+                SNOW_OPACITY_TARGET: 0.95         // 💨 雪花最终透明度(0.3-1.0) - 雪花完全不透明时的透明度
+                                                    // 0.3: 很透明，轻柔雪花
+                                                    // 0.8: 适中透明度，自然效果
+                                                    // 0.95: 高透明度，增强雪花亮度(✨已调整)
             },
             
             // 雪花动画常量 - ❄️ 调整这些值可以改变雪花的动态效果
@@ -146,41 +300,123 @@
                 SWAY_Z_AMPLITUDE: 0.004,         // ↕️ Z轴摇摆幅度(0.001-0.02) - 前后摇摆距离
                 ACTIVATION_DURATION: 0.8,        // ⏰ 雪花激活持续时间(0.3-2.0) - 全部雪花激活完成时间(秒)
                 OPACITY_BASE: 0.6,               // 💧 雪花基础透明度(0.2-0.8) - 雪花基础明度
+                                                    // 0.2: 很透明，轻柔感
+                                                    // 0.6: 适中透明度，自然效果(✨推荐)
+                                                    // 0.8: 较不透明，明显感强
                 OPACITY_VARIATION: 0.2,          // 🌊 雪花透明度变化幅度(0.05-0.4) - 透明度变化范围
+                                                    // 0.05: 变化小，稳定感
+                                                    // 0.2: 适中变化，生动感(✨推荐)
+                                                    // 0.4: 变化大，闪烁感强
                 OPACITY_FREQUENCY: 0.3,          // 🎭 雪花透明度变化频率(0.1-0.8) - 透明度变化速度
-            // 🌨️ 分段式速度过渡常量 - 慢速→中速→正常速度
-            SLOW_PHASE_DURATION: 1.5,        // 🐌 慢速阶段持续时间(0.5-3.0秒) - 初始极慢飘落
-            MEDIUM_PHASE_DURATION: 3.0,      // 🚶 中速阶段持续时间(1.0-4.0秒) - 中等速度飘落  
+                                                    // 0.1: 变化慢，稳定感
+                                                    // 0.3: 适中变化，自然闪烁(✨推荐)
+                                                    // 0.8: 变化快，闪烁明显
+                
+                // 🌨️ 分段式速度过渡常量 - 慢速→中速→正常速度
+            SLOW_PHASE_DURATION: 1.5,        // 🐌 慢速阶段持续时间(0.5-3.0秒) - 初始极慢飘落时间
+                                                                 // 0.5秒: 很短，几乎没慢速效果
+                                                                 // 1.5秒: 适中，有明显的开始慢感(✨推荐)
+                                                                 // 3.0秒: 很长，营造缓缓飘落的感觉
+            MEDIUM_PHASE_DURATION: 3.0,      // 🚶 中速阶段持续时间(1.0-4.0秒) - 中等速度飘落时间  
+                                                                 // 1.0秒: 短暂过渡，快速到正常速度
+                                                                 // 2.0秒: 适中，过渡自然(✨推荐)
+                                                                 // 4.0秒: 漫长过渡，保持中速较久
             INITIAL_SPEED_FACTOR: 0.05,      // 🌟 极慢速度因子(0.02-0.1) - 初始飘落速度
+                                                                 // 0.02: 几乎静止，像悬浮在空中
+                                                                 // 0.05: 极慢飘落，有飘动感(✨推荐)
+                                                                 // 0.1: 较慢飘落，过渡不太明显
             MEDIUM_SPEED_FACTOR: 0.2,        // 🌤️ 中速速度因子(0.1-0.4) - 中期飘落速度
-            SLOW_EASING_EXPONENT: 2.0,       // 📈 慢→中速缓动指数(1.0-3.0) - 第一阶段加速曲线
-            MEDIUM_EASING_EXPONENT: 2.5      // 📊 中→正常速缓动指数(1.0-4.0) - 第二阶段加速曲线
+                                                                 // 0.1: 偏慢，与极速区别不大
+                                                                 // 0.2: 适中，有明显速度变化(✨推荐)
+                                                                 // 0.4: 偏快，接近正常速度
+            SLOW_EASING_EXPONENT: 2.0,       // 📈 慢→中速缓动指数(1.0-3.0) - 第一阶段加速曲线形状
+                                                                 // 1.0: 线性加速 - 匀速变快
+                                                                 // 2.0: 平滑加速 - 开始很慢，后来变快(✨推荐)
+                                                                 // 3.0: 急剧加速 - 长时间慢速，突然变快
+            MEDIUM_EASING_EXPONENT: 2.5      // 📊 中→正常速缓动指数(1.0-4.0) - 第二阶段加速曲线形状
+                                                                 // 1.0: 线性加速 - 匀速到正常
+                                                                 // 2.5: 平滑加速 - 自然过渡(✨推荐)
+                                                                 // 4.0: 急剧加速 - 长时间中速，突然正常
             },
             
             // 动画时序常量 - ⏰ 控制每个动画阶段的开始时间和持续时间
             ANIMATION_PHASES: {
                 // 阶段1：粒子出现阶段 - 从动画开始到所有粒子可见
-                PARTICLES_APPEAR_START: 0,                    // 📅 粒子开始出现时间(ms，相对动画开始)
-                ALL_PARTICLES_VISIBLE_DELAY: 500,           // ⏳ 全部粒子可见后额外延迟(ms)
+                PARTICLES_APPEAR_START: 0,                    // 📅 粒子开始出现时间(ms，相对动画开始) - 通常为0
+                ALL_PARTICLES_VISIBLE_DELAY: 500,           // ⏳ 全部粒子可见后额外延迟(ms) - 等待所有粒子显示完的时间
+                                                                 // 0: 无延迟，立即进入下一阶段
+                                                                 // 500: 适中延迟，让观众欣赏星形(✨推荐)
+                                                                 // 2000: 长延迟，延长星形展示
                 
                 // 阶段2：星形闪耀阶段 - 粒子以星形模式闪烁
-                SPARKLE_DURATION: 2000,                    // ✨ 星形闪耀持续时间(ms)
-                SPARKLE_DELAY_BETWEEN_BATCHES: 0,          // ⏸️ 批次间闪耀延迟(ms)
+                SPARKLE_DURATION: 3000,                    // ✨ 星形闪耀持续时间(ms) - 星形闪烁的时间长度
+                                                                 // 2000: 短暂闪耀，快速过渡
+                                                                 // 4000: 适中时长，充分展示星形(✨推荐)
+                                                                 // 8000: 长时间闪耀，延长星形阶段
+                SPARKLE_DELAY_BETWEEN_BATCHES: 0,          // ⏸️ 批次间闪耀延迟(ms) - 批次间的额外延迟
                 
                 // 阶段3：过渡汇聚阶段 - 粒子从星形汇聚成树形
-                TRANSITION_DURATION: 6000,                 // 🌊 星形到树形过渡时间(ms)
-                TRANSITION_START_DELAY: 0,                  // ⏸️ 过渡开始延迟(ms)
+                TRANSITION_DURATION: 3500,                  // 🌊 星形到树形过渡时间(ms) - 汇聚过程的快慢
+                                                                 // 🎯 汇聚速度与时长完全关联，结束时刚好汇聚完成
+                                                                 // 1000: 1秒快速汇聚，瞬变效果
+                                                                 // 3500: 3.5秒快速汇聚，测试用(🎯当前设置)
+                                                                 // 4000: 4秒适中速度，自然过渡(✨推荐)  
+                                                                 // 20000: 20秒慢速汇聚，便于观察细节
+                TRANSITION_START_DELAY: 0,                  // ⏸️ 过渡开始延迟(ms) - 星形阶段结束后额外等待
+                                                                 // 0: 无延迟，立即开始汇聚
+                                                                 // 500: 短延迟，给观众反应时间
+                                                                 // 2000: 长延迟，延长星形展示
                 
                 // 阶段4：最终成型阶段 - 树完全形成并开始旋转
-                TREE_FORMED_DURATION: 2000,               // 🎄 树成型后稳定持续时间(ms)
-                ROTATION_SPEED_NORMAL: -0.002,             // 🔄 树正常旋转速度(弧度/帧)
-                ROTATION_SPEED_ACCELERATED: -0.004,        // 🚀 过渡阶段加速旋转速度(弧度/帧)
+                TREE_FORMED_DURATION: 0,               // 🎄 树成型后稳定持续时间(ms) - 成树后到开始雪花的时间
+                                                                 // 0: 立即开始雪花
+                                                                 // 8000: 适中时长，让观众欣赏成树(✨推荐)
+                                                                 // 15000: 长时长，充分展示成型效果
+                ROTATION_SPEED_NORMAL: -0.002,             // 🔄 树正常旋转速度(弧度/帧) - 成树后的旋转快慢
+                                                                 // -0.001: 很慢旋转，几乎静止
+                                                                 // -0.002: 缓慢旋转，优雅自然(✨推荐)
+                                                                 // -0.005: 快速旋转，动感强
+                ROTATION_SPEED_ACCELERATED: -0.004,        // 🚀 过渡阶段加速旋转速度(弧度/帧) - 汇聚时的旋转快慢
+                                                                 // -0.002: 与正常速度相同
+                                                                 // -0.004: 适中加速，增加动感(✨推荐)
+                                                                 // -0.008: 快速加速，动感强烈
                 
                 // 阶段5：雪花动画阶段 - 独立控制雪花出现时间
-                SNOW_START_DELAY_ABSOLUTE: 4000,         // ❄️ 雪花绝对开始时间(ms，相对动画开始)
-                SNOW_START_DELAY_RELATIVE: 0,              // 🎄 雪花相对树成型延迟(ms，备用选项)
-                SNOW_DURATION: 30000,                     // 💨 雪花动画持续时间(ms，0表示持续)
-                USE_ABSOLUTE_SNOW_TIMING: true ,            // ⏰ 是否使用绝对时间控制雪花(否则用相对树成型时间)
+                SNOW_START_DELAY_ABSOLUTE: 4000,         // ❄️ 雪花绝对开始时间(ms，相对动画开始) - 绝对时间控制
+                                                                 // 1500: 早期开始，与树形成重叠
+                                                                 // 4000: 适中时间，树基本成型后开始(✨推荐)
+                                                                 // 8000: 晚期开始，等树完全稳定后再下雪
+                SNOW_START_DELAY_RELATIVE: 0,              // 🎄 雪花相对树成型延迟(ms，备用选项) - 相对时间控制
+                                                                 // 0: 树成型后立即开始
+                                                                 // 2000: 树成型后2秒开始
+                SNOW_DURATION: 30000,                     // 💨 雪花动画持续时间(ms，0表示持续) - 雪花持续多久
+                                                                 // 0: 持续下雪，无限时
+                                                                 // 30000: 30秒，适合演示
+                                                                 // 60000: 1分钟，长时间欣赏
+                USE_ABSOLUTE_SNOW_TIMING: true,            // ⏰ 是否使用绝对时间控制雪花(否则用相对树成型时间)
+                                                                 // true: 使用SNOW_START_DELAY_ABSOLUTE(✨推荐)
+                                                                 // false: 使用SNOW_START_DELAY_RELATIVE
+                
+                // 🌟 树粒子汇聚动画常量 - 控制从星形到树形的过渡效果
+                TRANSITION_EASING_TYPE: "LINEAR",  // 📈 过渡缓动类型 - 控制粒子移动的加速度感觉
+                                                                 // "SMOOTH_ACCELERATE": 开始慢后来快(✨推荐) - 营造自然汇聚感
+                                                                 // "LINEAR": 匀速过渡 - 机械感强，像开关门
+                                                                 // "EASE_IN_OUT": 慢-快-慢 - 先加速后减速，像汽车启停
+                INITIAL_RADIUS: 15.0,                       // 🌟 初始星形半径(5.0-20.0) - 星形阶段粒子分布范围 (临时增大以便观察)
+                                                                 // 5.0: 小范围，粒子集中
+                                                                 // 10.0: 适中范围，自然分布(✨推荐)
+                                                                 // 20.0: 大范围，粒子分散
+                INITIAL_SIZE_MULTIPLIER: 3.0,               // 🌟 初始星形大小倍数(2.0-5.0) - 星形阶段粒子大小
+                                                                 // 2.0: 小星形，过渡不明显
+                                                                 // 3.0: 中等星形，过渡效果清晰(✨推荐) 
+                                                                 // 5.0: 大星形，视觉效果震撼但过渡突兀
+                FINAL_SIZE_MULTIPLIER: 1.0,                 // 🎄 最终大小倍数(0.8-1.2) - 成树后粒子的整体大小
+                                                                 // 0.8: 小粒子，树更精致
+                                                                 // 1.0: 正常大小(✨推荐)
+                                                                 // 1.2: 大粒子，树更饱满茂密
+                SIZE_TRANSITION_SYNC: true,                  // 🔄 大小过渡与位置过渡是否同步
+                                                                 // true: 大小和位置同步变化 - 过渡更连贯自然(✨推荐)
+                                                                 // false: 大小线性变化，位置缓动变化 - 产生不同的动画层次
                 
                 // 计算辅助常量 - 这些值由上述常量计算得出
                 BATCH_PROCESSING_INTERVAL: 120,              // ⚙️ 批次处理间隔(ms，原BATCH_INTERVAL)
@@ -193,9 +429,141 @@
         let particlesStarted = false;
         let animationParams = null;
         let scene, camera, renderer;
+        
 
-        // 页面加载完成后初始化Three.js
-        window.addEventListener('DOMContentLoaded', initThreeJs); // DOM加载完成事件监听器
+
+        /**
+         * 计算批次时间相关的公共函数 - 避免重复计算
+         * @returns {Object} 包含总批次数和出现持续时间的对象
+         */
+        function calculateBatchTiming() {
+            const totalBatches = Math.ceil(CONFIG.TREE.PARTICLE_COUNT / CONFIG.TREE.BATCH_SIZE);
+            const appearDuration = CONFIG.ANIMATION_PHASES.BATCH_PROCESSING_INTERVAL * totalBatches + 
+                                   CONFIG.TIMING.APPEAR_DURATION + 
+                                   CONFIG.ANIMATION_PHASES.ALL_PARTICLES_VISIBLE_DELAY;
+            return { totalBatches, appearDuration };
+        }
+
+        /**
+         * 创建Canvas背景的通用函数 - 避免重复代码
+         * @param {number} width - Canvas宽度
+         * @param {number} height - Canvas高度
+         * @param {Function} fillCallback - 填充Canvas的回调函数，接收ctx作为参数
+         * @returns {THREE.CanvasTexture} 返回Three.js纹理对象
+         */
+        function createCanvasBackground(width, height, fillCallback) {
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            
+            // 调用回调函数来填充canvas
+            fillCallback(ctx, canvas);
+            
+            return ThreeFactory.CanvasTexture(canvas);
+        }
+
+
+        
+
+        
+        /**
+         * 🚀 启动单个阶段动画（返回Promise）
+         * @param {string} stageId - 阶段ID
+         * @returns {Promise} - 阶段完成的Promise
+         */
+        function startStageWithPromise(stageId) {
+            return new Promise((resolve) => {
+                // 定义阶段配置
+                const stageConfig = {
+                    'particles-appear': { name: '🌟 粒子出现', duration: calculateBatchTiming().appearDuration },
+                    'sparkle': { name: '✨ 星形闪耀', duration: CONFIG.ANIMATION_PHASES.SPARKLE_DURATION },
+                    'transition': { name: '🌊 过渡汇聚', duration: CONFIG.ANIMATION_PHASES.TRANSITION_DURATION },
+                    'tree-formed': { name: '🎄 树形成', duration: CONFIG.ANIMATION_PHASES.TREE_FORMED_DURATION },
+                    'snow': { name: '❄️ 雪花飘落', duration: CONFIG.ANIMATION_PHASES.SNOW_DURATION || 0 }
+                };
+                
+                const stage = stageConfig[stageId];
+                if (!stage) {
+                    console.error(`❌ 未找到阶段: ${stageId}`);
+                    resolve();
+                    return;
+                }
+                
+                console.log(`🚀 启动阶段: ${stage.name} (${stage.duration}ms)`);
+                
+                // 如果是雪花阶段，特殊处理
+                if (stageId === 'snow') {
+                    // 立即启动雪花动画
+                    if (animationParams && animationParams.snowSystem) {
+                        animationParams.snowSystem.snowParticles.visible = true;
+                        animationParams.snowSystem.snowParticles.material.opacity = 0;
+                        if (animationParams.animationState) {
+                            animationParams.animationState.snowStarted = true;
+                            animationParams.animationState.snowStartTime = Date.now();
+                        }
+                    }
+                    
+                    // 雪花是持续动画，直接resolve
+                    resolve();
+                } else {
+                    // 使用setTimeout等待阶段完成
+                    setTimeout(() => {
+                        console.log(`✅ ${stage.name} 阶段完成`);
+                        resolve(); // 阶段完成，触发下一个Promise
+                    }, stage.duration);
+                }
+            });
+        }
+        
+        /**
+         * 🎬 执行完整动画流程（Promise链式调用）
+         */
+        async function runAnimationSequence() {
+            console.log('🎬 开始执行动画序列');
+            
+            try {
+                // 严格串行执行每个阶段
+                await startStageWithPromise('particles-appear'); // 等待粒子出现完成
+                await startStageWithPromise('sparkle'); // 等待星形闪耀完成
+                await startStageWithPromise('transition'); // 等待过渡汇聚完成
+                await startStageWithPromise('tree-formed'); // 等待树形成完成
+                await startStageWithPromise('snow'); // 启动雪花飘落
+                
+                console.log('🎉 所有动画阶段执行完成');
+            } catch (error) {
+                console.error('❌ 动画执行出错:', error);
+            }
+        }
+
+
+
+        // 页面加载完成后初始化Three.js和音频控制
+        window.addEventListener('DOMContentLoaded', () => {
+            // 初始化Three.js
+            initThreeJs();
+            
+            // 初始化音频控制 - 自动循环播放
+            initAudioControls();
+        }); // DOM加载完成事件监听器
+        
+        /**
+         * 初始化音频控制 - 自动循环播放
+         */
+        function initAudioControls() {
+            const audio = document.getElementById('christmasAudio');
+            
+            // 设置初始音量
+            audio.volume = 0.5;
+            
+            // 尝试自动播放音频
+            audio.play().then(() => {
+                console.log('🎵 背景音乐开始自动循环播放');
+            }).catch(error => {
+                console.warn('⚠️ 自动播放失败（浏览器策略限制），需要用户交互后才能播放音乐:', error);
+                // 如果自动播放失败，不做任何操作，保持静音
+            });
+        }
         
         /**
          * Three.js初始化主函数
@@ -206,6 +574,22 @@
             
             // 优先使用渐变背景，避免图片加载问题
             useFallbackBackground(scene);
+            
+            // 添加全局光源 - 💡 提升整体场景亮度
+            // 1. 环境光：提供基础照明，消除完全黑暗区域
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.8); // 白色环境光，适中强度
+            scene.add(ambientLight);
+            
+            // 2. 方向光：模拟太阳光，提供主要方向性照明，增加立体感
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8); // 白色方向光，强度0.8
+            directionalLight.position.set(10, 20, 10); // 光源位置：右上方
+            directionalLight.castShadow = false; // 禁用阴影以提高性能
+            scene.add(directionalLight);
+            
+            // 3. 补光：增强阴影区域的亮度
+            const fillLight = new THREE.DirectionalLight(0xffffff, 0.3); // 白色补光，强度0.3
+            fillLight.position.set(-10, 10, -10); // 补光位置：左下方
+            scene.add(fillLight);
             
             // 初始化相机
             camera = createCamera(); // 调用相机创建函数
@@ -226,11 +610,13 @@
                 animate();
                 
                 // ⭐ 延迟初始化粒子系统
-                setTimeout(() => {
-                    console.log('🌟 开始初始化粒子系统...');
-                    initParticles();
-                    particlesStarted = true;
-                }, CONFIG.TIMING.PARTICLE_INIT_DELAY);
+                    setTimeout(() => {
+                        console.log('🌟 开始初始化粒子系统...');
+                        // 直接启动动画序列
+                        runAnimationSequence();
+                        initParticles();
+                        particlesStarted = true;
+                    }, CONFIG.TIMING.PARTICLE_INIT_DELAY);
             });
         } // initThreeJs函数结束
         
@@ -293,6 +679,11 @@
             const renderer = new THREE.WebGLRenderer({ antialias: true }); // 创建WebGL渲染器，启用抗锯齿
             renderer.setSize(window.innerWidth, window.innerHeight); // 设置渲染器尺寸为窗口大小
             renderer.shadowMap.enabled = false; // 禁用阴影映射提高性能
+            
+            // 启用gamma校正，提升颜色亮度和对比度
+            renderer.gammaFactor = 2.2;
+            renderer.outputEncoding = THREE.sRGBEncoding;
+            
             document.body.appendChild(renderer.domElement); // 将渲染器DOM元素添加到页面
             
             return renderer; // 返回渲染器对象
@@ -309,30 +700,25 @@
             img.onload = function() {
                 console.log('✅ 背景图片加载成功');
                 try {
-                    // 先将图片绘制到canvas上进行调暗处理
-                    const canvas = document.createElement('canvas');
-                    canvas.width = img.width;
-                    canvas.height = img.height;
-                    const ctx = canvas.getContext('2d');
-                    
-                    // 绘制原图
-                    ctx.drawImage(img, 0, 0);
-                    
-                    // 应用暗化滤镜
-                    ctx.globalCompositeOperation = 'multiply';
-                    ctx.fillStyle = `rgba(0, 0, 50, ${CONFIG.BRIGHTNESS.BACKGROUND_MULTIPLY_ALPHA})`;
-                    ctx.fillRect(0, 0, canvas.width, canvas.height);
-                    
-                    // 重置混合模式
-                    ctx.globalCompositeOperation = 'source-over';
-                    
-                    // 稍微增加对比度
-                    ctx.globalAlpha = CONFIG.BRIGHTNESS.BACKGROUND_OVERLAY_ALPHA;
-                    ctx.fillStyle = '#000000';
-                    ctx.fillRect(0, 0, canvas.width, canvas.height);
-                    ctx.globalAlpha = 1.0;
-                    
-                    const texture = new THREE.CanvasTexture(canvas);
+                    // 使用通用Canvas创建函数处理图片
+                    const texture = createCanvasBackground(img.width, img.height, (ctx, canvas) => {
+                        // 绘制原图
+                        ctx.drawImage(img, 0, 0);
+                        
+                        // 应用暗化滤镜
+                        ctx.globalCompositeOperation = 'multiply';
+                        ctx.fillStyle = `rgba(0, 0, 50, ${CONFIG.BRIGHTNESS.BACKGROUND_MULTIPLY_ALPHA})`;
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        
+                        // 重置混合模式
+                        ctx.globalCompositeOperation = 'source-over';
+                        
+                        // 稍微增加对比度
+                        ctx.globalAlpha = CONFIG.BRIGHTNESS.BACKGROUND_OVERLAY_ALPHA;
+                        ctx.fillStyle = '#000000';
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                        ctx.globalAlpha = 1.0;
+                    });
                     texture.colorSpace = THREE.SRGBColorSpace;
                     texture.minFilter = THREE.LinearFilter;
                     texture.magFilter = THREE.LinearFilter;
@@ -372,36 +758,32 @@
         function useFallbackBackground(scene) {
             console.log('🎨 使用渐变背景');
             
-            // 创建渐变背景
-            const canvas = document.createElement('canvas');
-            canvas.width = 512;
-            canvas.height = 512;
-            const ctx = canvas.getContext('2d');
+            // 使用通用Canvas创建函数
+            const texture = createCanvasBackground(512, 512, (ctx, canvas) => {
+                // 创建更暗的渐变背景
+                const gradient = ctx.createLinearGradient(0, 0, 0, 512);
+                gradient.addColorStop(0, '#000511');    // 极深的深蓝色
+                gradient.addColorStop(0.3, '#000822');  // 深蓝色
+                gradient.addColorStop(0.6, '#000b33');  // 稍亮的深蓝
+                gradient.addColorStop(0.8, '#000e44');  // 中等深蓝
+                gradient.addColorStop(1, '#001155');    // 底部深蓝
+                
+                ctx.fillStyle = gradient;
+                ctx.fillRect(0, 0, 512, 512);
+                
+                // 添加更稀疏、更暗的星星效果
+                for (let i = 0; i < 60; i++) {
+                    // 降低星星的亮度和密度
+                    const opacity = Math.random() * 0.4;  // 最大透明度0.4
+                    ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
+                    ctx.fillRect(
+                        Math.random() * 512,
+                        Math.random() * 512,
+                        1, 1
+                    );
+                }
+            });
             
-            // 创建更暗的渐变背景
-            const gradient = ctx.createLinearGradient(0, 0, 0, 512);
-            gradient.addColorStop(0, '#000511');    // 极深的深蓝色
-            gradient.addColorStop(0.3, '#000822');  // 深蓝色
-            gradient.addColorStop(0.6, '#000b33');  // 稍亮的深蓝
-            gradient.addColorStop(0.8, '#000e44');  // 中等深蓝
-            gradient.addColorStop(1, '#001155');    // 底部深蓝
-            
-            ctx.fillStyle = gradient;
-            ctx.fillRect(0, 0, 512, 512);
-            
-            // 添加更稀疏、更暗的星星效果
-            for (let i = 0; i < 60; i++) {
-                // 降低星星的亮度和密度
-                const opacity = Math.random() * 0.4;  // 最大透明度0.4
-                ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
-                ctx.fillRect(
-                    Math.random() * 512,
-                    Math.random() * 512,
-                    1, 1
-                );
-            }
-            
-            const texture = new THREE.CanvasTexture(canvas);
             scene.background = texture;
             
             console.log('✅ 更暗的渐变背景已设置');
@@ -628,10 +1010,11 @@
                     const i3 = i * 3;
                     
                     // 将粒子随机分布在空间中，形成星形效果
-                    const randomRadius = CONFIG.ANIMATION.PARTICLE_ANIMATION.INITIAL_RADIUS;
+                    const randomRadius = CONFIG.ANIMATION_PHASES.INITIAL_RADIUS;
                     clusterPositions[i3] = (Math.random() - 0.5) * randomRadius * 2;
                     clusterPositions[i3 + 1] = (Math.random() - 0.5) * randomRadius * 1.5 + randomRadius * 0.2;
-                    clusterPositions[i3 + 2] = (Math.random() - 0.5) * randomRadius * 2;
+                    // 修改Z轴范围：最大值3，最小值-12
+                    clusterPositions[i3 + 2] = Math.random() * 15 - 12;
                     
                     // 目标位置
                     targetPositions[i3] = data.targetPosition.x;
@@ -643,9 +1026,8 @@
                     colors[i3 + 1] = data.color.g;
                     colors[i3 + 2] = data.color.b;
                     
-                    // 大小 - 初始设置为星形大小
-                    const starSizeMultiplier = 3.0;
-                    sizes[i] = data.size * starSizeMultiplier;
+                    // 🌟 大小 - 使用配置的初始星形大小倍数
+                    sizes[i] = data.size * CONFIG.ANIMATION_PHASES.INITIAL_SIZE_MULTIPLIER;
                     baseSizes[i] = data.size;
                 }
                 
@@ -656,8 +1038,8 @@
                 geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
                 geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
                 geometry.setAttribute('baseSize', new THREE.BufferAttribute(baseSizes, 1));
-                // 星星阶段的大小倍率
-                const starSizes = new Float32Array(BATCH_PARTICLE_COUNT).fill(3.0);
+                // 🌟 星星阶段的大小倍率 - 使用配置常量
+                const starSizes = new Float32Array(BATCH_PARTICLE_COUNT).fill(CONFIG.ANIMATION_PHASES.INITIAL_SIZE_MULTIPLIER);
                 geometry.setAttribute('starSize', new THREE.BufferAttribute(starSizes, 1));
                 
                 // 创建材质
@@ -724,7 +1106,7 @@
             } = CONFIG.TREE;
             
             // 随机高度
-            const randomHeight = Math.random() * LEAF_HEIGHT_RANGE + LEAF_BASE_HEIGHT;
+            let randomHeight = Math.random() * LEAF_HEIGHT_RANGE + LEAF_BASE_HEIGHT;
             
             // 圆锥形状计算
             const heightRatio = (randomHeight - LEAF_BASE_HEIGHT) / LEAF_HEIGHT_RANGE;
@@ -742,37 +1124,66 @@
                 const ribbonColors = CONFIG.COLORS.RIBBON;
                 ribbonColorIndex = ribbonColors[Math.floor(Math.random() * ribbonColors.length)];
                 
+                // 彩带起始高度设置为接近树干顶部的位置
+                const ribbonStartHeight = LEAF_BASE_HEIGHT + 0.3;
+                
+                // 确保彩带高度在合理范围内，不超出树的底部和顶部
+                const minRibbonHeight = Math.max(0, ribbonStartHeight);
+                const maxRibbonHeight = LEAF_BASE_HEIGHT + LEAF_HEIGHT_RANGE;
+                
+                // 如果随机高度不在合理范围内，调整到合理范围内
+                if (randomHeight < minRibbonHeight || randomHeight > maxRibbonHeight) {
+                    randomHeight = minRibbonHeight + Math.random() * (maxRibbonHeight - minRibbonHeight);
+                }
+                
+                // 重新计算高度比和最大半径，确保彩带在正确位置
+                const adjustedHeightRatio = (randomHeight - LEAF_BASE_HEIGHT) / LEAF_HEIGHT_RANGE;
+                const adjustedMaxRadius = LEAF_BASE_RADIUS * (1 - adjustedHeightRatio);
+                
                 const spiralOffset = (ribbonIndex / RIBBON_COUNT) * 2 * Math.PI;
                 const spiralAngle = spiralOffset + (randomHeight - LEAF_BASE_HEIGHT) * 
                     (2 * Math.PI * RIBBON_SPIRAL_TURNS / LEAF_HEIGHT_RANGE);
                 
-                // 彩带粒子只在树的最外层生成
-                radius = maxRadius * (0.92 + Math.random() * 0.08);
-                angle = spiralAngle + (Math.random() - 0.5) * 0.1;
+                // 改进彩带的螺旋分布，添加轻微的波动使彩带更自然
+                const waveEffect = Math.sin(randomHeight * 0.5) * 0.05; // 添加波浪效果
+                
+                // 彩带粒子只在树的最外层生成，稍微增加宽度变化
+                radius = (adjustedMaxRadius - 0.09 + waveEffect) * (0.9 + Math.random() * 0.1);
+                angle = spiralAngle + (Math.random() - 0.5) * 0.05; // 减少角度随机性，使彩带更整齐
+                
+                // 设置彩带粒子位置
+                data.targetPosition.set(
+                    Math.cos(angle) * radius,
+                    randomHeight,
+                    Math.sin(angle) * radius
+                );
             } else {
-                // 普通树叶粒子：随机分布
-                radius = Math.sqrt(Math.random()) * maxRadius;
+                // 普通树叶粒子：更均匀的随机分布
+                // 使用均匀分布算法生成半径，避免中心过于密集
+                radius = maxRadius * Math.sqrt(Math.random());
+                // 使用均匀分布算法生成角度，确保圆周分布均匀
                 angle = Math.random() * Math.PI * 2;
                 
-                // 按高度调整密度
-                const densityFactor = 1.2 - Math.abs(heightRatio - 0.5) * 0.4;
+                // 按高度调整密度 - 实现下密上疏效果（底部更密，顶部更疏）
+                // 底部(接近0)的密度因子更小，顶部(接近1)的密度因子更大
+                const densityFactor = 0.5 + heightRatio * 1.5;
                 
-                // 这里不再生成远离树的不可见粒子，而是直接跳过创建，这样更高效
-                if (Math.random() <= 0.2 * densityFactor) {
-                    // 跳过创建该粒子，减少不必要的渲染
+                // 密度系数控制粒子生成概率 - 使用用户提供的代码模式
+                if (Math.random() > 0.2 * densityFactor) {
+                    // 保留粒子，设置位置
+                    data.targetPosition.set(
+                        Math.cos(angle) * radius,
+                        randomHeight,
+                        Math.sin(angle) * radius
+                    );
+                } else {
+                    // 跳过创建该粒子
                     data.targetPosition.set(0, 0, 0);
-                    data.color.setRGB(0, 0, 0); // 设置为黑色
-                    data.size = 0; // 设置为不可见大小
+                    data.color.setRGB(0, 0, 0);
+                    data.size = 0;
                     return;
                 }
             }
-            
-            // 设置位置
-            data.targetPosition.set(
-                Math.cos(angle) * radius,
-                randomHeight,
-                Math.sin(angle) * radius
-            );
             
             // 设置颜色
             const colorIndex = determineLeafColorIndex(isRibbon, ribbonColorIndex, heightRatio);
@@ -918,42 +1329,78 @@
             }
         }
         
+
+
         /**
-         * 检查树是否完全成型
+         * 检查树是否完全汇聚完成
          */
         function checkTreeCompletion(batches, animationState) {
-            // 检查所有批次是否都到达最终位置（starPhase = 2）
             const allBatchesCompleted = batches.every(batch => 
                 batch.visible && batch.userData.starPhase >= 2
             );
-            
             if (allBatchesCompleted && !animationState.treeCompleted) {
                 animationState.treeCompleted = true;
-                return true; // 树刚完成
+                console.log('🎉 所有粒子已完成汇聚！树形成阶段开始！');
+                return true;
             }
-            
-            return false; // 树未完成或已经完成
+            return false;
         }
 
         /**
-         * 更新批次移动动画
+         * 更新批次移动动画 - 使用统一的时序计算
          */
-        function updateBatchMovement(batches, startTime) {
+        function updateBatchMovement(batches, animationStartTime, animationState) {
             const now = Date.now();
-            const starPhaseDuration = CONFIG.ANIMATION_PHASES.SPARKLE_DURATION;
-            const transitionDuration = CONFIG.ANIMATION_PHASES.TRANSITION_DURATION;
+            const elapsed = now - animationStartTime; // 相对于动画开始的耗时
             
-            // 计算关键时间点
-            const totalBatches = Math.ceil(CONFIG.TREE.PARTICLE_COUNT / CONFIG.TREE.BATCH_SIZE);
-            const allParticlesVisibleTime = startTime + 
-                CONFIG.ANIMATION_PHASES.BATCH_PROCESSING_INTERVAL * totalBatches + 
-                CONFIG.ANIMATION_PHASES.ALL_PARTICLES_VISIBLE_DELAY;
-            const starPhaseEndTime = allParticlesVisibleTime + CONFIG.ANIMATION_PHASES.SPARKLE_DURATION;
-            const transitionEndTime = starPhaseEndTime + CONFIG.ANIMATION_PHASES.TRANSITION_DURATION;
+            // 🔄 帧计数器调试
+            if (!updateBatchMovement.frameCount) {
+                updateBatchMovement.frameCount = 0;
+            }
+            updateBatchMovement.frameCount++;
+            
+            // 每100帧打印一次
+            if (updateBatchMovement.frameCount % 100 === 0) {
+                console.log(`🔄 第${updateBatchMovement.frameCount}帧，耗时${(elapsed/1000).toFixed(2)}s`);
+            }
+            
+            // 计算关键时间点 - 仅用于粒子出现和星形闪耀阶段的时间控制
+            const { totalBatches, appearDuration } = calculateBatchTiming();
+    
+    const particlesAppearEnd = appearDuration;
+    const sparkleEnd = particlesAppearEnd + CONFIG.ANIMATION_PHASES.SPARKLE_DURATION;
+    
+    // 检查树是否完全汇聚完成
+    checkTreeCompletion(batches, animationParams?.animationState);
+            
+            // 🔍 状态调试 - 打印关键状态信息
+            if (Math.random() < 0.001) { // 0.1%概率打印，避免刷屏
+                console.log(`⏱️ 状态详情:`);
+                console.log(`   当前总耗时: ${(elapsed/1000).toFixed(2)}s`);
+                console.log(`   粒子出现结束: ${(particlesAppearEnd/1000).toFixed(2)}s`);
+                console.log(`   星形闪耀结束: ${(sparkleEnd/1000).toFixed(2)}s`);
+                console.log(`   树汇聚完成: ${animationParams?.animationState?.treeCompleted ? '✅ 是' : '❌ 否'}`);
+                
+                const currentPhase = elapsed < particlesAppearEnd ? '粒子出现' :
+                                   elapsed < sparkleEnd ? '星形闪耀' :
+                                   animationParams?.animationState?.treeCompleted ? '树形成' : '过渡汇聚';
+                console.log(`   当前应该处于: ${currentPhase}`);
+            }
+            
+            // 🕒 全局状态监控 - 每秒显示一次进度
+            const currentSecond = Math.floor(elapsed / 1000);
+            if (elapsed < 1000 || currentSecond !== Math.floor((elapsed - 16.67) / 1000)) {
+                console.log(`⏰ 【${currentSecond}秒】全局状态:`);
+                console.log(`   总耗时: ${elapsed}ms`);
+                console.log(`   sparkleEnd: ${sparkleEnd}ms`);
+                console.log(`   树汇聚完成: ${animationParams?.animationState?.treeCompleted ? '✅ 是' : '❌ 否'}`);
+                console.log(`   当前阶段: ${elapsed < sparkleEnd ? '星形闪耀' : animationParams?.animationState?.treeCompleted ? '树形成' : '过渡汇聚'}`);
+                console.log('---');
+            }
             
             batches.forEach((points, batchIndex) => {
                 const time = Date.now() * 0.001;
-                const batchAppearTime = startTime + batchIndex * CONFIG.ANIMATION_PHASES.BATCH_PROCESSING_INTERVAL;
+                const batchAppearTime = animationStartTime + batchIndex * CONFIG.ANIMATION_PHASES.BATCH_PROCESSING_INTERVAL;
                 const elapsedSinceAppear = now - batchAppearTime;
                 
                 if (elapsedSinceAppear <= 0) {
@@ -962,127 +1409,295 @@
                     return;
                 }
                 
-                // 根据当前时间确定动画阶段
-                let sparkle, convergeBrightness;
+                // 🔍 批次级别的状态判断
+                const batchPhase = elapsed < particlesAppearEnd ? '粒子出现' :
+                                 elapsed < sparkleEnd ? '星形闪耀' :
+                                 animationParams?.animationState?.treeCompleted ? '树形成' : '过渡汇聚';
                 
-                if (now < allParticlesVisibleTime) {
-                    // 阶段0：粒子出现阶段，逐渐显示
-                    const appearProgress = THREE.MathUtils.clamp(elapsedSinceAppear / CONFIG.TIMING.APPEAR_DURATION, 0, 1);
-                    sparkle = CONFIG.BRIGHTNESS.SPARKLE_BASE_INITIAL + Math.sin(time * 6 + batchIndex) * CONFIG.BRIGHTNESS.SPARKLE_AMPLITUDE_INITIAL;
-                    convergeBrightness = appearProgress;
-                } else if (now < starPhaseEndTime) {
-                    // 阶段1：星形闪耀阶段
-                    sparkle = CONFIG.BRIGHTNESS.SPARKLE_BASE_INITIAL + Math.sin(time * 6 + batchIndex) * CONFIG.BRIGHTNESS.SPARKLE_AMPLITUDE_INITIAL;
-                    convergeBrightness = 1.0;
-                } else if (now < transitionEndTime) {
-                    // 阶段2：过渡汇聚阶段
-                    const transitionProgress = THREE.MathUtils.clamp((now - starPhaseEndTime) / transitionDuration, 0, 1);
-                    sparkle = CONFIG.BRIGHTNESS.SPARKLE_BASE_INITIAL + Math.sin(time * 6 + batchIndex) * CONFIG.BRIGHTNESS.SPARKLE_AMPLITUDE_INITIAL;
-                    convergeBrightness = 1.0;
-                } else {
-                    // 阶段3：最终形成树
-                    sparkle = CONFIG.BRIGHTNESS.SPARKLE_BASE_FINAL + Math.sin(time * 3 + batchIndex) * CONFIG.BRIGHTNESS.SPARKLE_AMPLITUDE_FINAL;
-                    convergeBrightness = 1.0;
+                if (batchPhase === '过渡汇聚' && Math.random() < 0.01) {
+                    console.log(`🎯 批次${batchIndex}进入过渡汇聚阶段`);
                 }
                 
-                // 最终透明度
-                points.material.opacity = sparkle * convergeBrightness;
+
                 
                 const geometry = points.geometry;
                 const positions = geometry.attributes.position.array;
                 const targetPositions = geometry.attributes.targetPosition.array;
                 
-                // 阶段0和1：粒子出现和星形闪耀阶段
-                if (now < starPhaseEndTime) {
-                    // 静态显示，无漂移效果
+                // 🌟 根据当前时间执行相应的动画阶段
+                if (elapsed < particlesAppearEnd) {
+                    // 阶段0：粒子出现阶段
                     for (let i = 0; i < positions.length; i += 3) {
                         // 直接使用原始位置，保持静态
                         positions[i] = points.userData.originalPositions[i];
                         positions[i + 1] = points.userData.originalPositions[i + 1];
                         positions[i + 2] = points.userData.originalPositions[i + 2];
                     }
-                    
                     geometry.attributes.position.needsUpdate = true;
                     
-                    // ⭐ 星形阶段（闪耀）- 控制size
+                    // ⭐ 粒子出现阶段的大小控制
                     const sizes = geometry.attributes.size.array;
                     const baseSizes = geometry.attributes.baseSize.array;
                     const starSizes = geometry.attributes.starSize.array;
                     
-                    const sparkle = 1 + Math.sin(time * 6 + batchIndex) * 0.3;
+                    // 粒子出现阶段使用较低的频率和幅度，保持平滑效果
+                    const sparkle = 1 + Math.sin(time * 3.0 + batchIndex) * 0.3;
+                    const convergeBrightness = THREE.MathUtils.clamp(elapsedSinceAppear / CONFIG.TIMING.APPEAR_DURATION, 0, 1);
                     
                     for (let i = 0; i < sizes.length; i++) {
                         sizes[i] = baseSizes[i] * starSizes[i] * sparkle;
                     }
-                    
                     geometry.attributes.size.needsUpdate = true;
-                } 
-                // 阶段2：过渡汇聚阶段
-                else if (now < transitionEndTime) {
-                    const elapsedSinceTransition = now - starPhaseEndTime;
-                    const t = elapsedSinceTransition / transitionDuration;
-                    // 使用更慢的缓动函数，使过渡更平缓
-                    const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
                     
-                    // 通过BufferAttribute数组进行位置插值
-                    for (let i = 0; i < positions.length; i += 3) {
-                        const startX = points.userData.originalPositions[i];
-                        const startY = points.userData.originalPositions[i + 1];
-                        const startZ = points.userData.originalPositions[i + 2];
-                        
-                        const targetX = targetPositions[i];
-                        const targetY = targetPositions[i + 1];
-                        const targetZ = targetPositions[i + 2];
-                        
-                        // 直线轨迹汇聚
-                        positions[i] = startX + (targetX - startX) * eased;
-                        positions[i + 1] = startY + (targetY - startY) * eased;
-                        positions[i + 2] = startZ + (targetZ - startZ) * eased;
+                    // 最终透明度设置
+                    points.material.opacity = sparkle * convergeBrightness;
+                    return; // 提前返回，避免后续代码覆盖
+                    
+                } else if (elapsed < sparkleEnd) {
+                    // 阶段1：星形闪耀阶段
+                    if (batchIndex === 0 && Math.random() < 0.01) {
+                        console.log(`⭐ 阶段1: 星形闪耀 - 批次${batchIndex}, ${elapsed}ms < ${sparkleEnd}ms`);
                     }
-                    
+                    for (let i = 0; i < positions.length; i += 3) {
+                        // 直接使用原始位置，保持静态
+                        positions[i] = points.userData.originalPositions[i];
+                        positions[i + 1] = points.userData.originalPositions[i + 1];
+                        positions[i + 2] = points.userData.originalPositions[i + 2];
+                    }
                     geometry.attributes.position.needsUpdate = true;
                     
-                    // ⭐ 过渡阶段（大 → 小，连续缩放）- 控制size
+                    // ⭐ 星形闪耀阶段的大小控制
                     const sizes = geometry.attributes.size.array;
                     const baseSizes = geometry.attributes.baseSize.array;
                     const starSizes = geometry.attributes.starSize.array;
                     
-                    const scale = THREE.MathUtils.lerp(
-                        starSizes[0], // 星星阶段倍率
-                        1.0,          // 最终倍率
-                        eased
-                    );
+                    // 使用阶跃函数创建强烈的频闪效果
+                    const sineValue = Math.sin(time * CONFIG.BRIGHTNESS.SPARKLE_FREQUENCY_INITIAL + batchIndex);
+                    const isBright = sineValue > 0;
+                    const sparkle = isBright ? (CONFIG.BRIGHTNESS.SPARKLE_BASE_INITIAL + CONFIG.BRIGHTNESS.SPARKLE_AMPLITUDE_INITIAL) : 0.4;
                     
                     for (let i = 0; i < sizes.length; i++) {
-                        sizes[i] = baseSizes[i] * scale;
+                        sizes[i] = baseSizes[i] * starSizes[i] * sparkle;
                     }
-                    
                     geometry.attributes.size.needsUpdate = true;
                     
-                    points.userData.starPhase = eased; // 记录过渡进度
-                } 
-                // 阶段3：完全形成树形态
-                else {
-                    // 通过BufferAttribute数组确保所有粒子位于最终位置
+                    // 最终透明度设置 - 增强亮度
+                    points.material.opacity = sparkle * 1.2;
+                    return; // 提前返回，避免后续代码覆盖
+                    
+                } else if (!animationState.treeCompleted) {
+                    // 阶段2：过渡汇聚阶段 - 这是从星形到树形的关键动画！
+                    
+                    // 🔍 汇聚阶段开始日志
+                    if (batchIndex === 0 && Math.random() < 0.2) {
+                        console.log(`🎯 ✨✨✨ 进入过渡汇聚阶段！ ✨✨✨`);
+                        console.log(`   当前总耗时: ${elapsed}ms`);
+                        console.log(`   sparkleEnd: ${sparkleEnd}ms`);
+                    }
+                    
+                    const waveAmplitude = 0.1; // 轨迹波动幅度
+                    const waveFrequency = 2.0; // 轨迹波动频率
+                    let totalDistance = 0;
+                    let maxDistance = 0;
+                    let allParticlesNearTarget = true;
+                    
+                    // 计算当前粒子到目标的距离，用于进度计算
                     for (let i = 0; i < positions.length; i += 3) {
-                        positions[i] = targetPositions[i];
-                        positions[i + 1] = targetPositions[i + 1];
-                        positions[i + 2] = targetPositions[i + 2];
+                        const distance = Math.sqrt(
+                            Math.pow(positions[i] - targetPositions[i], 2) +
+                            Math.pow(positions[i + 1] - targetPositions[i + 1], 2) +
+                            Math.pow(positions[i + 2] - targetPositions[i + 2], 2)
+                        );
+                        totalDistance += distance;
+                        if (distance > maxDistance) maxDistance = distance;
+                        if (distance > 0.01) allParticlesNearTarget = false;
+                    }
+                    
+                    // 计算平均距离和进度（用于视觉效果）
+                    const avgDistance = totalDistance / (positions.length / 3);
+                    let progress = 1.0;
+                    
+                    if (maxDistance > 0.01) {
+                        // 基于最大距离计算进度（0=开始，1=完成）
+                        progress = 1.0 - (avgDistance / maxDistance);
+                        if (progress < 0) progress = 0;
+                    }
+                    
+                    // 🔥 关键：基于进度的动态速度控制 - 实现从慢到快的汇聚效果
+                    // 注意：这段代码必须放在progress变量计算之后
+                    const baseSpeed = 0.004; // 初始最小速度
+                    const maxSpeed = 0.02; // 最大速度
+                    // 使用easeInQuad缓动函数，使速度从慢到快平滑增加
+                    const speedProgress = progress * progress; // easeInQuad效果
+                    // 动态计算每帧移动速度
+                    const moveSpeedPerFrame = baseSpeed + (maxSpeed - baseSpeed) * speedProgress;
+                    
+                    // 🌊 基于速度的移动 - 添加缓动和轨迹变化
+                    for (let i = 0; i < positions.length; i += 3) {
+                        const targetX = targetPositions[i]; // 树形目标位置
+                        const targetY = targetPositions[i + 1];
+                        const targetZ = targetPositions[i + 2];
+                        
+                        // 计算粒子到目标的向量
+                        const dx = targetX - positions[i];
+                        const dy = targetY - positions[i + 1];
+                        const dz = targetZ - positions[i + 2];
+                        
+                        // 计算当前粒子的距离
+                        const currentDistance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                        
+                        // 添加缓动效果 - 使用easeOutCubic曲线
+                        const easeProgress = 1 - Math.pow(1 - progress, 3);
+                        
+                        // 基于粒子索引添加微小的波动效果，使轨迹更丰富
+                        const waveOffset = Math.sin(i * 0.01 + time * waveFrequency) * waveAmplitude;
+                        
+                        // 计算移动向量，添加波动效果
+                        const moveX = dx * moveSpeedPerFrame + waveOffset * dz * 0.1;
+                        const moveY = dy * moveSpeedPerFrame * (0.8 + 0.2 * easeProgress); // Y轴稍快
+                        const moveZ = dz * moveSpeedPerFrame + waveOffset * dx * 0.1;
+                        
+                        // 应用移动
+                        positions[i] += moveX;
+                        positions[i + 1] += moveY;
+                        positions[i + 2] += moveZ;
+                    }
+                    
+                    
+                    // 🔍 汇聚完成验证：当所有粒子接近目标时标记完成
+                    if (allParticlesNearTarget) {
+                        points.userData.starPhase = 2; // 标记批次完成
+                        if (batchIndex === 0) {
+                            console.log('✅ 该批次粒子已完成汇聚！');
+                        }
+                    }
+                    
+                    // 🔍 位置调试：检查第一个粒子的实际位置变化  
+                    if (batchIndex === 0) { // 总是检查第一批粒子，便于观察
+                        const start = {
+                            x: points.userData.originalPositions[0],
+                            y: points.userData.originalPositions[1], 
+                            z: points.userData.originalPositions[2]
+                        };
+                        const target = {
+                            x: targetPositions[0],
+                            y: targetPositions[1],
+                            z: targetPositions[2]
+                        };
+                        const current = {
+                            x: positions[0],
+                            y: positions[1],
+                            z: positions[2]
+                        };
+                        console.log(`🎯 粒子位置追踪:`);
+                        console.log(`   起始(星形): (${start.x.toFixed(2)}, ${start.y.toFixed(2)}, ${start.z.toFixed(2)})`);
+                        console.log(`   目标(树形): (${target.x.toFixed(2)}, ${target.y.toFixed(2)}, ${target.z.toFixed(2)})`);
+                        console.log(`   当前位置:   (${current.x.toFixed(2)}, ${current.y.toFixed(2)}, ${current.z.toFixed(2)})`);
+                        console.log(`   汇聚进度: ${progress.toFixed(3)} (${(progress*100).toFixed(1)}%)`);
                     }
                     
                     geometry.attributes.position.needsUpdate = true;
                     
-                    // ⭐ 最终阶段（稳定小粒子）- 控制size
+                    // ⭐ 过渡阶段的大小变化：从星形大小过渡到树形大小 - 改进缓动效果
+                    const sizes = geometry.attributes.size.array;
+                    const baseSizes = geometry.attributes.baseSize.array;
+                    
+                    // 使用easeOutElastic缓动函数，创建弹性效果
+                    const elasticProgress = 1 - Math.pow(2, -10 * progress) * Math.sin((progress * 10 - 0.75) * (2 * Math.PI) / 3);
+                    
+                    // 结合多种缓动效果，使大小变化更自然
+                    const combinedProgress = THREE.MathUtils.lerp(progress, elasticProgress, 0.3);
+                    
+                    const scale = THREE.MathUtils.lerp(
+                        CONFIG.ANIMATION_PHASES.INITIAL_SIZE_MULTIPLIER, // 初始星形大小倍数
+                        CONFIG.ANIMATION_PHASES.FINAL_SIZE_MULTIPLIER,    // 最终树形大小倍数
+                        combinedProgress // 基于改进的进度缓动
+                    );
+                    
+                    // 为每个粒子添加独特的脉动效果，增强舞动感
+                    for (let i = 0; i < sizes.length; i++) {
+                        const particleId = i;
+                        // 为每个粒子创建独特的脉动频率和幅度
+                        const particlePulse = 1 + Math.sin(time * 8 + particleId * 0.1) * 0.1 * (1 - progress);
+                        // 结合统一脉动和粒子独特脉动
+                        const combinedPulse = 1 + Math.sin(time * 8) * 0.05 * (1 - progress) * particlePulse;
+                        sizes[i] = baseSizes[i] * scale * combinedPulse;
+                    }
+                    geometry.attributes.size.needsUpdate = true;
+                    
+                    // 🎊 增强过渡阶段的闪烁效果，为每个批次添加独特的舞动光效
+                    const baseSparkle = CONFIG.BRIGHTNESS.SPARKLE_BASE_INITIAL;
+                    const batchSparkle = Math.sin(time * CONFIG.BRIGHTNESS.SPARKLE_FREQUENCY_INITIAL + batchIndex) * CONFIG.BRIGHTNESS.SPARKLE_AMPLITUDE_INITIAL;
+                    // 添加额外的舞动光效，增强节奏感
+                    const danceSparkle = Math.cos(time * 5 + batchIndex * 2) * 0.2 * (1 - progress);
+                    const sparkle = baseSparkle + batchSparkle + danceSparkle;
+                    
+ // 仅在过渡中更新为进度值
+                    
+                    // 📺 状态显示：每1秒显示一次当前状态（仅在第一组粒子）
+                    if (batchIndex === 0 && Math.floor(elapsed / 1000) !== Math.floor((elapsed - 16.67) / 1000)) {
+                        console.log(`🎯 【${Math.floor(elapsed/1000)}秒】汇聚详情:`);
+                        console.log(`   总耗时: ${(elapsed/1000).toFixed(2)}s`);
+                        console.log(`   平均距离: ${avgDistance.toFixed(3)}`);
+                        console.log(`   最大距离: ${maxDistance.toFixed(3)}`);
+                        console.log(`   汇聚进度: ${(progress*100).toFixed(1)}%`);
+                        console.log(`   所有粒子接近目标: ${allParticlesNearTarget}`);
+                    }
+                    
+                    // 最终透明度设置，使闪烁更具动感
+                    points.material.opacity = sparkle * 1.0;
+                    return; // 提前返回，避免后续代码覆盖
+                    
+                } else if (animationState.treeCompleted) {
+                    // 阶段3：树形成完成 - 过渡阶段已完成，粒子应该在目标位置
+                    // 🚨 重要：不要强制移动位置，保持过渡阶段的结果
+                    if (batchIndex === 0) {
+                        console.log(`🌳 进入树形成阶段 - 保持当前粒子位置`);
+                        
+                        // 检查粒子是否接近目标位置
+                        const avgDistance = (() => {
+                            let totalDistance = 0;
+                            let count = 0;
+                            for (let i = 0; i < Math.min(30, positions.length); i += 3) { // 只检查前10个粒子
+                                const distance = Math.sqrt(
+                                    Math.pow(positions[i] - targetPositions[i], 2) +
+                                    Math.pow(positions[i + 1] - targetPositions[i + 1], 2) +
+                                    Math.pow(positions[i + 2] - targetPositions[i + 2], 2)
+                                );
+                                totalDistance += distance;
+                                count++;
+                            }
+                            return totalDistance / count;
+                        })();
+                        
+                        console.log(`   粒子平均距离目标: ${avgDistance.toFixed(3)} 单位`);
+                        if (avgDistance < 0.1) {
+                            console.log(`   ✅ 汇聚效果良好，粒子已接近目标位置`);
+                        } else {
+                            console.log(`   ⚠️ 粒子距离目标较远，可能需要更多时间汇聚`);
+                        }
+                    }
+                    
+                    // 🚨 不强制修改位置！保持过渡阶段的最终结果
+                    
+                    // ⭐ 最终阶段的大小控制：恢复到正常的树形大小
                     const sizes = geometry.attributes.size.array;
                     const baseSizes = geometry.attributes.baseSize.array;
                     
                     for (let i = 0; i < sizes.length; i++) {
-                        sizes[i] = baseSizes[i];
+                        sizes[i] = baseSizes[i]; // 使用基础大小，不再放大
                     }
-                    
                     geometry.attributes.size.needsUpdate = true;
                     
-                    points.userData.starPhase = 2;
+                    // 🎄 树形成阶段的闪烁效果：使用最终闪烁参数
+                    const sparkle = CONFIG.BRIGHTNESS.SPARKLE_BASE_FINAL + Math.sin(time * CONFIG.BRIGHTNESS.SPARKLE_FREQUENCY_FINAL + batchIndex) * CONFIG.BRIGHTNESS.SPARKLE_AMPLITUDE_FINAL;
+                    
+                    points.userData.starPhase = 2; // 标记为完全形成的树
+                    
+                    // 树形成阶段保持粒子原始颜色（树设计的颜色）
+                    
+                    // 最终透明度设置
+                    points.material.opacity = sparkle * 1.0;
                 }
             });
         }
@@ -1112,56 +1727,29 @@
                 
                 // 更新批次可见性
                 updateBatchVisibility(particleBatches, animationState.startTime); // 更新粒子批次显示状态
-                updateBatchMovement(particleBatches, animationState.startTime); // 更新粒子移动动画
+                updateBatchMovement(particleBatches, animationState.startTime, animationState); // 更新粒子移动动画
                 
                 // 应用树的倾斜（始终应用）
                 treeGroup.rotation.x = CONFIG.TREE.TILT_X;
                 
-                // 圣诞树旋转逻辑
+                // 圣诞树旋转逻辑 - 基于粒子汇聚状态
                 const now = Date.now();
-            // 计算关键时间点
-            const totalBatches = Math.ceil(CONFIG.TREE.PARTICLE_COUNT / CONFIG.TREE.BATCH_SIZE);
-            const allParticlesVisibleTime = animationState.startTime + 
-                CONFIG.ANIMATION_PHASES.BATCH_PROCESSING_INTERVAL * totalBatches + 
-                CONFIG.ANIMATION_PHASES.ALL_PARTICLES_VISIBLE_DELAY;
-            const starPhaseEndTime = allParticlesVisibleTime + CONFIG.ANIMATION_PHASES.SPARKLE_DURATION;
-            const transitionDuration = CONFIG.ANIMATION_PHASES.TRANSITION_DURATION;
-            const transitionEndTime = starPhaseEndTime + transitionDuration;
+                const elapsed = now - animationState.startTime;
                 
-                // 使用监听器检测树是否完全成型
-                const treeJustCompleted = checkTreeCompletion(particleBatches, animationState);
+                // 计算关键时间点 - 用于初始阶段判断
+                const { totalBatches, appearDuration } = calculateBatchTiming();
                 
-                // 雪花启动逻辑（支持绝对时间和相对时间两种模式）
-                if (!animationState.snowStarted) {
-                    let shouldStartSnow = false;
-                    
-                    if (CONFIG.ANIMATION_PHASES.USE_ABSOLUTE_SNOW_TIMING) {
-                        // 使用绝对时间控制：从动画开始计算固定延迟
-                        const elapsedSinceAnimationStart = now - animationState.startTime;
-                        shouldStartSnow = elapsedSinceAnimationStart >= CONFIG.ANIMATION_PHASES.SNOW_START_DELAY_ABSOLUTE;
-                    } else {
-                        // 使用相对时间控制：树成型后才开始
-                        shouldStartSnow = treeJustCompleted;
-                    }
-                    
-                    if (shouldStartSnow) {
-                        snowSystem.snowParticles.visible = true;
-                        snowSystem.snowParticles.material.opacity = 0;
-                        animationState.snowStarted = true;
-                        animationState.snowStartTime = now;
-                        console.log('❄️ 雪花动画开始，使用模式：', CONFIG.ANIMATION_PHASES.USE_ABSOLUTE_SNOW_TIMING ? '绝对时间' : '相对时间');
+                const particlesAppearEnd = appearDuration;
+                const sparkleEnd = particlesAppearEnd + CONFIG.ANIMATION_PHASES.SPARKLE_DURATION;
+                
+                // 🎄 统一旋转速度：在整个动画过程中使用正常旋转速度
+                if (elapsed >= sparkleEnd) {
+                    // 从星形闪耀阶段结束后开始旋转，一直保持正常旋转速度
+                    treeGroup.rotation.y += CONFIG.ANIMATION_PHASES.ROTATION_SPEED_NORMAL;
+                    if (!animationState.isRotating) {
+                        animationState.isRotating = true;
                     }
                 }
-                
-            // 只有在过渡汇聚阶段才开始加速旋转
-            if (now >= starPhaseEndTime && now < transitionEndTime) {
-                treeGroup.rotation.y += CONFIG.ANIMATION_PHASES.ROTATION_SPEED_ACCELERATED; // 移动阶段加速旋转
-                if (!animationState.isRotating) {
-                    animationState.isRotating = true;
-                }
-            } else if (now >= transitionEndTime) {
-                treeGroup.rotation.y += CONFIG.ANIMATION_PHASES.ROTATION_SPEED_NORMAL; // 完成后正常旋转
-            }
                 
                 // 更新相机位置
                 updateCameraPosition(camera, cameraControls);
